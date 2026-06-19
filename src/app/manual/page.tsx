@@ -162,19 +162,19 @@ export default function ManualPage() {
         {/* Modules */}
         <section>
           <SectionTitle icon={Boxes} title="โมดูลทั้งหมด" />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid auto-rows-fr gap-4 sm:grid-cols-2">
             {MODULES.map((m) => {
               const Icon = m.icon;
               return (
-                <Card key={m.href} className="transition-shadow hover:shadow-lg">
-                  <CardContent className="p-5">
+                <Card key={m.href} className="flex flex-col transition-shadow hover:shadow-lg">
+                  <CardContent className="flex flex-1 flex-col p-5">
                     <div className="mb-3 flex items-center gap-3">
                       <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                         <Icon className="h-5 w-5" />
                       </span>
                       <h3 className="font-semibold text-slate-900 dark:text-slate-50">{m.title}</h3>
                     </div>
-                    <ul className="space-y-1.5">
+                    <ul className="mb-4 space-y-1.5">
                       {m.items.map((it) => (
                         <li
                           key={it}
@@ -187,7 +187,7 @@ export default function ManualPage() {
                     </ul>
                     <Link
                       href={m.href}
-                      className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                      className="mt-auto inline-flex items-center gap-1 self-start text-sm font-medium text-primary hover:underline"
                     >
                       เปิดหน้านี้ <ArrowRight className="h-4 w-4" />
                     </Link>
