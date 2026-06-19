@@ -79,7 +79,7 @@ export default function ProductDetailPage({
     <div>
       <Link
         href="/shop"
-        className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-primary dark:text-slate-400"
+        className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-primary dark:text-slate-400"
       >
         <ArrowLeft className="h-4 w-4" />
         กลับไปหน้าร้าน

@@ -34,7 +34,7 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh">
       <header className="glass sticky top-0 z-30">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
+        <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <Link href="/shop" aria-label="หน้าร้าน">
             <Brand />
           </Link>
@@ -75,7 +75,7 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">{children}</main>
     </div>
   );
 }

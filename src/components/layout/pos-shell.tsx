@@ -29,7 +29,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh">
       <header className="glass sticky top-0 z-30">
-        <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <Brand />
           <nav className="ml-2 flex items-center gap-1">
             {items.map((item) => {
@@ -69,7 +69,7 @@ export function PosShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-[1400px] px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">{children}</main>
     </div>
   );
 }
