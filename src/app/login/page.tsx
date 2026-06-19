@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogIn } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -105,6 +106,11 @@ export default function LoginPage() {
         </Card>
 
         <p className="mt-4 text-center text-xs text-slate-400">รหัสผ่านเดโมทุกบัญชี: 1234</p>
+        <p className="mt-2 text-center text-xs">
+          <Link href="/manual" className="font-medium text-primary hover:underline">
+            ดูคู่มือการใช้งานและบัญชีทดลอง
+          </Link>
+        </p>
       </div>
     </div>
   );
