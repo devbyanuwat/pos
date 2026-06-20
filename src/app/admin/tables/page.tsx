@@ -47,6 +47,7 @@ export default function TablesPage() {
     setPrintingId(t.id);
     const res = await sendPrint({
       printer: printerConfig(settings),
+      mode: settings.printMode ?? "local",
       job: {
         type: "tableQr",
         shopName: settings.shopName,
@@ -55,7 +56,7 @@ export default function TablesPage() {
       },
     });
     setPrintingId(null);
-    if (res.ok) toast.success(`พิมพ์ QR ${t.name} แล้ว`);
+    if (res.ok) toast.success(`ส่งพิมพ์ QR ${t.name} แล้ว`);
     else toast.error(`พิมพ์ไม่สำเร็จ: ${res.error ?? "ไม่ทราบสาเหตุ"}`);
   }
 

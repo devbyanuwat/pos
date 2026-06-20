@@ -34,6 +34,19 @@ export function printerConfig(settings: Settings): PrinterConfig {
   };
 }
 
+/** Server-side: fill a partial printer config (from a request body) with defaults. */
+export function resolvePrinter(p: Partial<PrinterConfig> = {}): PrinterConfig {
+  return {
+    host: (p.host ?? "").trim() || PRINTER_DEFAULTS.host,
+    port: p.port || PRINTER_DEFAULTS.port,
+    codepage: p.codepage ?? PRINTER_DEFAULTS.codepage,
+    width: p.width || PRINTER_DEFAULTS.width,
+  };
+}
+
+/** How a print job reaches the printer: directly over the LAN, or via the cloud queue. */
+export type PrintMode = "local" | "cloud";
+
 export interface ReceiptItem {
   name: string;
   qty: number;
@@ -66,6 +79,8 @@ export type PrintJob =
 export interface PrintRequest {
   printer: PrinterConfig;
   job: PrintJob;
+  /** "local" streams to the printer now; "cloud" enqueues for the shop agent. */
+  mode?: PrintMode;
 }
 
 export interface PrintResult {
@@ -73,13 +88,20 @@ export interface PrintResult {
   error?: string;
 }
 
-/** POST a job to the local print bridge. Never throws — returns `{ ok, error }`. */
+/**
+ * Send a print job. In "local" mode it POSTs to the LAN bridge (`/api/print`)
+ * which streams to the printer immediately. In "cloud" mode it enqueues the job
+ * (`/api/print-queue/enqueue`) for the in-shop agent to pull and print — this is
+ * the only mode that works when the app is hosted off-LAN (e.g. Vercel).
+ * Never throws — returns `{ ok, error }`.
+ */
 export async function sendPrint(req: PrintRequest): Promise<PrintResult> {
+  const endpoint = req.mode === "cloud" ? "/api/print-queue/enqueue" : "/api/print";
   try {
-    const res = await fetch("/api/print", {
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req),
+      body: JSON.stringify({ printer: req.printer, job: req.job }),
     });
     const data: PrintResult = await res.json().catch(() => ({ ok: false }));
     if (!res.ok || !data.ok) {

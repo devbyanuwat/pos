@@ -472,6 +472,7 @@ export const SETTINGS: Settings = {
   printerPort: 9100,
   printerCodepage: 21,
   printerWidth: 32,
+  printMode: "local",
 };
 
 function pickOptions(p: Product, rand: () => number): { labels: string[]; delta: number } {

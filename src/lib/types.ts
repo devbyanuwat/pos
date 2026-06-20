@@ -235,6 +235,8 @@ export interface Settings {
   printerCodepage?: number;
   /** Receipt character width: 58mm paper = 32, 80mm = 48. */
   printerWidth?: number;
+  /** "local" = stream over LAN now; "cloud" = enqueue for the in-shop agent. */
+  printMode?: "local" | "cloud";
 }
 
 /** Computed finance figures for a date range. */

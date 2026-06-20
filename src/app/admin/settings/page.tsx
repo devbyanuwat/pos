@@ -18,7 +18,7 @@ import {
   EmptyState,
   toast,
 } from "@/components/ui";
-import { formatTHB } from "@/lib/utils";
+import { cn, formatTHB } from "@/lib/utils";
 
 export default function SettingsPage() {
   const { role } = useAuth();
@@ -38,6 +38,7 @@ export default function SettingsPage() {
     port: String(settings.printerPort ?? PRINTER_DEFAULTS.port),
     codepage: String(settings.printerCodepage ?? PRINTER_DEFAULTS.codepage),
     width: String(settings.printerWidth ?? PRINTER_DEFAULTS.width),
+    mode: settings.printMode ?? "local",
   });
   const [testing, setTesting] = useState(false);
 
@@ -53,6 +54,7 @@ export default function SettingsPage() {
       port: String(settings.printerPort ?? PRINTER_DEFAULTS.port),
       codepage: String(settings.printerCodepage ?? PRINTER_DEFAULTS.codepage),
       width: String(settings.printerWidth ?? PRINTER_DEFAULTS.width),
+      mode: settings.printMode ?? "local",
     });
   }, [settings]);
 
@@ -97,16 +99,28 @@ export default function SettingsPage() {
       printerPort: cfg.port,
       printerCodepage: cfg.codepage,
       printerWidth: cfg.width,
+      printMode: printer.mode === "cloud" ? "cloud" : "local",
     });
     toast.success("บันทึกเครื่องพิมพ์แล้ว");
   }
 
   async function testPrint() {
     setTesting(true);
-    const res = await sendPrint({ printer: currentPrinter(), job: { type: "test" } });
+    const res = await sendPrint({
+      printer: currentPrinter(),
+      mode: printer.mode === "cloud" ? "cloud" : "local",
+      job: { type: "test" },
+    });
     setTesting(false);
-    if (res.ok) toast.success("ส่งทดสอบพิมพ์แล้ว - ดูกระดาษที่เครื่องพิมพ์");
-    else toast.error(`พิมพ์ไม่สำเร็จ: ${res.error ?? "ไม่ทราบสาเหตุ"}`);
+    if (res.ok) {
+      toast.success(
+        printer.mode === "cloud"
+          ? "ส่งเข้าคิวแล้ว - agent จะพิมพ์ให้"
+          : "ส่งทดสอบพิมพ์แล้ว - ดูกระดาษที่เครื่องพิมพ์",
+      );
+    } else {
+      toast.error(`พิมพ์ไม่สำเร็จ: ${res.error ?? "ไม่ทราบสาเหตุ"}`);
+    }
   }
 
   function handleReset() {
@@ -197,6 +211,30 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid gap-4">
+              <div>
+                <Label>โหมดพิมพ์</Label>
+                <div className="mt-1.5 grid grid-cols-2 gap-2">
+                  {(["local", "cloud"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setPrinter((p) => ({ ...p, mode: m }))}
+                      className={cn(
+                        "rounded-xl border px-3 py-2 text-sm font-medium transition-colors",
+                        printer.mode === m
+                          ? "border-primary/40 bg-primary/10 text-primary"
+                          : "border-slate-300/60 text-slate-600 hover:bg-white/60 dark:border-white/12 dark:text-slate-300 dark:hover:bg-white/5",
+                      )}
+                    >
+                      {m === "local" ? "ในร้าน (LAN)" : "ผ่าน agent (cloud)"}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  ในร้าน = เปิดแอปจากเครื่องในวง LAN เดียวกับพิมพ์ · cloud = host บน Vercel
+                  แล้วมี agent ในร้านดึงงานไปพิมพ์
+                </p>
+              </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="pr-host">IP เครื่องพิมพ์</Label>
