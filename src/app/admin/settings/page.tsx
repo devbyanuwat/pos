@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, Lock, RotateCcw, Save, Store } from "lucide-react";
+import { AlertTriangle, Lock, Printer, RotateCcw, Save, Store } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/hooks/use-auth";
+import { sendPrint, PRINTER_DEFAULTS } from "@/lib/print";
 import {
   PageHeader,
   Card,
@@ -32,12 +33,26 @@ export default function SettingsPage() {
     lowStockThreshold: String(settings.lowStockThreshold),
   });
 
+  const [printer, setPrinter] = useState({
+    host: settings.printerHost ?? PRINTER_DEFAULTS.host,
+    port: String(settings.printerPort ?? PRINTER_DEFAULTS.port),
+    codepage: String(settings.printerCodepage ?? PRINTER_DEFAULTS.codepage),
+    width: String(settings.printerWidth ?? PRINTER_DEFAULTS.width),
+  });
+  const [testing, setTesting] = useState(false);
+
   // Keep the form in sync if settings change underneath (e.g. after reset).
   useEffect(() => {
     setForm({
       shopName: settings.shopName,
       startingCash: String(settings.startingCash),
       lowStockThreshold: String(settings.lowStockThreshold),
+    });
+    setPrinter({
+      host: settings.printerHost ?? PRINTER_DEFAULTS.host,
+      port: String(settings.printerPort ?? PRINTER_DEFAULTS.port),
+      codepage: String(settings.printerCodepage ?? PRINTER_DEFAULTS.codepage),
+      width: String(settings.printerWidth ?? PRINTER_DEFAULTS.width),
     });
   }, [settings]);
 
@@ -62,6 +77,36 @@ export default function SettingsPage() {
       lowStockThreshold: Math.max(0, Math.round(Number(form.lowStockThreshold) || 0)),
     });
     toast.success("บันทึกการตั้งค่าแล้ว");
+  }
+
+  // Build a printer config from the current (possibly unsaved) form so the
+  // owner can test connectivity before committing.
+  function currentPrinter() {
+    return {
+      host: printer.host.trim() || PRINTER_DEFAULTS.host,
+      port: Number(printer.port) || PRINTER_DEFAULTS.port,
+      codepage: Number(printer.codepage) || PRINTER_DEFAULTS.codepage,
+      width: Number(printer.width) || PRINTER_DEFAULTS.width,
+    };
+  }
+
+  function savePrinter() {
+    const cfg = currentPrinter();
+    updateSettings({
+      printerHost: cfg.host,
+      printerPort: cfg.port,
+      printerCodepage: cfg.codepage,
+      printerWidth: cfg.width,
+    });
+    toast.success("บันทึกเครื่องพิมพ์แล้ว");
+  }
+
+  async function testPrint() {
+    setTesting(true);
+    const res = await sendPrint({ printer: currentPrinter(), job: { type: "test" } });
+    setTesting(false);
+    if (res.ok) toast.success("ส่งทดสอบพิมพ์แล้ว - ดูกระดาษที่เครื่องพิมพ์");
+    else toast.error(`พิมพ์ไม่สำเร็จ: ${res.error ?? "ไม่ทราบสาเหตุ"}`);
   }
 
   function handleReset() {
@@ -133,6 +178,96 @@ export default function SettingsPage() {
                 <Button onClick={save}>
                   <Save className="h-4 w-4" />
                   บันทึกการตั้งค่า
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card strong>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Printer className="h-5 w-5" />
+              เครื่องพิมพ์ใบเสร็จ
+            </CardTitle>
+            <CardDescription>
+              เครื่องพิมพ์ความร้อนแบบ LAN (พอร์ต 9100) ในวงเดียวกับเครื่องที่รันระบบ
+              ใช้พิมพ์ใบเสร็จและ QR โต๊ะ
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="pr-host">IP เครื่องพิมพ์</Label>
+                  <Input
+                    id="pr-host"
+                    value={printer.host}
+                    onChange={(e) => setPrinter((p) => ({ ...p, host: e.target.value }))}
+                    placeholder={PRINTER_DEFAULTS.host}
+                    className="font-mono"
+                    inputMode="decimal"
+                  />
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    ตั้ง IP คงที่ (DHCP reservation) กันเลขเด้ง
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="pr-port">พอร์ต</Label>
+                  <Input
+                    id="pr-port"
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    value={printer.port}
+                    onChange={(e) => setPrinter((p) => ({ ...p, port: e.target.value }))}
+                    placeholder={String(PRINTER_DEFAULTS.port)}
+                    className="font-mono"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="pr-width">ความกว้างกระดาษ (ตัวอักษร)</Label>
+                  <Input
+                    id="pr-width"
+                    type="number"
+                    min={16}
+                    inputMode="numeric"
+                    value={printer.width}
+                    onChange={(e) => setPrinter((p) => ({ ...p, width: e.target.value }))}
+                    placeholder={String(PRINTER_DEFAULTS.width)}
+                    className="font-mono"
+                  />
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    กระดาษ 58mm = 32 · 80mm = 48
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="pr-cp">โค้ดเพจภาษาไทย</Label>
+                  <Input
+                    id="pr-cp"
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    value={printer.codepage}
+                    onChange={(e) => setPrinter((p) => ({ ...p, codepage: e.target.value }))}
+                    placeholder={String(PRINTER_DEFAULTS.codepage)}
+                    className="font-mono"
+                  />
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    ถ้าภาษาไทยเพี้ยน ลองปรับเลขนี้ (เช่น 20, 21, 255) แล้วกดทดสอบ
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button onClick={savePrinter}>
+                  <Save className="h-4 w-4" />
+                  บันทึกเครื่องพิมพ์
+                </Button>
+                <Button variant="outline" onClick={testPrint} disabled={testing}>
+                  <Printer className="h-4 w-4" />
+                  {testing ? "กำลังส่ง..." : "ทดสอบพิมพ์"}
                 </Button>
               </div>
             </div>

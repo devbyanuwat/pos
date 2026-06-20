@@ -1,26 +1,30 @@
 "use client";
 
-import { Armchair, Pencil, Printer, Trash2 } from "lucide-react";
+import { Armchair, FileText, Pencil, Printer, Trash2 } from "lucide-react";
 import { Card, CardContent, Button, Badge, QrCodeView } from "@/components/ui";
 import type { Table } from "@/lib/types";
 
 /**
  * A single dine-in table card with its QR code. The QR encodes the public
- * ordering URL `origin + "/order/" + table.id`. "พิมพ์ QR" asks the page to
- * print just this table's clean tent card.
+ * ordering URL `origin + "/order/" + table.id`. "พิมพ์ QR" sends the QR to the
+ * thermal printer; "พิมพ์ลงกระดาษ A4" falls back to the browser tent card.
  */
 export function TableQrCard({
   table,
   origin,
+  printing,
   onEdit,
   onDelete,
   onPrint,
+  onPrintPaper,
 }: {
   table: Table;
   origin: string;
+  printing?: boolean;
   onEdit: (t: Table) => void;
   onDelete: (t: Table) => void;
   onPrint: (t: Table) => void;
+  onPrintPaper: (t: Table) => void;
 }) {
   const url = `${origin}/order/${table.id}`;
   const display = origin ? url : `/order/${table.id}`;
@@ -66,10 +70,21 @@ export function TableQrCard({
           {display}
         </p>
 
-        <Button variant="outline" className="w-full" onClick={() => onPrint(table)}>
-          <Printer className="h-4 w-4" />
-          พิมพ์ QR
-        </Button>
+        <div className="grid w-full gap-2">
+          <Button className="w-full" onClick={() => onPrint(table)} disabled={printing}>
+            <Printer className="h-4 w-4" />
+            {printing ? "กำลังพิมพ์..." : "พิมพ์ QR"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-slate-500"
+            onClick={() => onPrintPaper(table)}
+          >
+            <FileText className="h-4 w-4" />
+            พิมพ์ลงกระดาษ A4
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

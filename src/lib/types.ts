@@ -228,6 +228,13 @@ export interface Settings {
   earnRate?: number;
   /** Baht value of 1 loyalty point when redeemed, e.g. 1. Coffee pivot. */
   redeemValue?: number;
+  /** RAW/JetDirect thermal printer host on the shop LAN (port 9100). Coffee pivot. */
+  printerHost?: string;
+  printerPort?: number;
+  /** `ESC t` Thai code page; tune if Thai prints garbled. */
+  printerCodepage?: number;
+  /** Receipt character width: 58mm paper = 32, 80mm = 48. */
+  printerWidth?: number;
 }
 
 /** Computed finance figures for a date range. */

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, QrCode } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { sendPrint, printerConfig } from "@/lib/print";
 import type { Table } from "@/lib/types";
 import {
   PageHeader,
@@ -35,6 +36,28 @@ export default function TablesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Table | null>(null);
   const [printTable, setPrintTable] = useState<Table | null>(null);
+  const [printingId, setPrintingId] = useState<string | null>(null);
+
+  // Send a table's QR straight to the thermal printer on the shop LAN.
+  async function handleThermalPrint(t: Table) {
+    if (!origin) {
+      toast.error("ยังโหลดที่อยู่เว็บไม่เสร็จ ลองอีกครั้ง");
+      return;
+    }
+    setPrintingId(t.id);
+    const res = await sendPrint({
+      printer: printerConfig(settings),
+      job: {
+        type: "tableQr",
+        shopName: settings.shopName,
+        tableName: t.name,
+        url: `${origin}/order/${t.id}`,
+      },
+    });
+    setPrintingId(null);
+    if (res.ok) toast.success(`พิมพ์ QR ${t.name} แล้ว`);
+    else toast.error(`พิมพ์ไม่สำเร็จ: ${res.error ?? "ไม่ทราบสาเหตุ"}`);
+  }
 
   // When a print target is set, render its tent card then trigger the browser
   // print dialog. Cleared once the dialog closes so the screen view returns.
@@ -127,9 +150,11 @@ export default function TablesPage() {
               key={t.id}
               table={t}
               origin={origin}
+              printing={printingId === t.id}
               onEdit={openEdit}
               onDelete={handleDelete}
-              onPrint={setPrintTable}
+              onPrint={handleThermalPrint}
+              onPrintPaper={setPrintTable}
             />
           ))}
         </div>

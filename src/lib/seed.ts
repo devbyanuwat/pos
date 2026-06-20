@@ -468,6 +468,10 @@ export const SETTINGS: Settings = {
   lowStockThreshold: 5,
   earnRate: 20,
   redeemValue: 1,
+  printerHost: "192.168.1.118",
+  printerPort: 9100,
+  printerCodepage: 21,
+  printerWidth: 32,
 };
 
 function pickOptions(p: Product, rand: () => number): { labels: string[]; delta: number } {
