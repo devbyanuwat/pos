@@ -107,6 +107,22 @@ const TEMP_OPTION: MenuOption = {
   ],
 };
 
+const MENU_IMG_KW: Record<string, string> = {
+  cat_hot: "coffee",
+  cat_iced: "iced-coffee,coffee",
+  cat_tea: "matcha,tea",
+  cat_smoothie: "smoothie",
+  cat_bakery: "croissant,bakery",
+  cat_dessert: "cake,dessert",
+};
+
+/** Coffee-themed, deterministic menu image (with a branded fallback in the UI). */
+function menuImage(id: string, categoryId: string): string {
+  const kw = MENU_IMG_KW[categoryId] ?? "coffee";
+  const lock = parseInt(id.replace(/\D/g, ""), 10) || 1;
+  return `https://loremflickr.com/600/600/${kw}?lock=${lock}`;
+}
+
 function makeProduct(
   id: string,
   sku: string,
@@ -124,7 +140,7 @@ function makeProduct(
     sku,
     name,
     categoryId,
-    image: `https://picsum.photos/seed/${sku}/600/600`,
+    image: menuImage(id, categoryId),
     cost,
     basePrice,
     stock,
@@ -399,7 +415,7 @@ export const DISCOUNTS: Discount[] = [
 ];
 
 export const SETTINGS: Settings = {
-  shopName: "Brew & Bean Café",
+  shopName: "Teddy Boost",
   startingCash: 30000,
   currency: "THB",
   lowStockThreshold: 5,

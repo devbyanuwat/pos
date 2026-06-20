@@ -32,6 +32,7 @@ import {
   Dialog,
   EmptyState,
   QrCodeView,
+  MenuImage,
   toast,
 } from "@/components/ui";
 import { useStore } from "@/lib/store";
@@ -278,20 +279,11 @@ function MenuItemCard({
         disabled={soldOut}
         className="relative block aspect-square overflow-hidden bg-amber-500/5 disabled:cursor-not-allowed"
       >
-        {product.image ? (
-          <Image
-            src={product.image}
-            alt={product.name}
-            fill
-            unoptimized
-            sizes="(max-width: 480px) 50vw, 220px"
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <span className="flex h-full w-full items-center justify-center text-amber-500">
-            <Coffee className="h-8 w-8" />
-          </span>
-        )}
+        <MenuImage
+          src={product.image}
+          alt={product.name}
+          className="absolute inset-0 transition-transform duration-300 group-hover:scale-105"
+        />
         {soldOut && (
           <span className="absolute inset-0 flex items-center justify-center bg-slate-900/45 backdrop-blur-[1px]">
             <Badge tone="danger">หมดชั่วคราว</Badge>
@@ -426,20 +418,7 @@ function CheckoutDialog({
             {cart.map((l) => (
               <div key={l.key} className="flex items-start gap-3 py-3 first:pt-0">
                 <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-amber-500/5">
-                  {l.image ? (
-                    <Image
-                      src={l.image}
-                      alt={l.name}
-                      fill
-                      unoptimized
-                      sizes="56px"
-                      className="object-cover"
-                    />
-                  ) : (
-                    <span className="flex h-full w-full items-center justify-center text-amber-500">
-                      <Coffee className="h-6 w-6" />
-                    </span>
-                  )}
+                  <MenuImage src={l.image} alt={l.name} className="absolute inset-0" iconClassName="h-6 w-6" />
                 </div>
 
                 <div className="min-w-0 flex-1">

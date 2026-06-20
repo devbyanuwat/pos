@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Search, PackageX, Plus, SlidersHorizontal } from "lucide-react";
-import { Input, Tabs, Badge, EmptyState } from "@/components/ui";
+import { Input, Tabs, Badge, EmptyState, MenuImage } from "@/components/ui";
 import { cn, formatTHB, formatNumber } from "@/lib/utils";
 import type { Product, Category } from "@/lib/types";
 
@@ -103,13 +103,11 @@ function MenuTile({
           : "hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/10 active:scale-[0.99]",
       )}
     >
-      <div className="relative aspect-square w-full overflow-hidden bg-slate-500/5">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+      <div className="relative aspect-square w-full overflow-hidden">
+        <MenuImage
           src={product.image}
           alt={product.name}
-          loading="lazy"
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          className="absolute inset-0 transition-transform duration-300 group-hover:scale-105"
         />
         <span className="absolute left-2 top-2 flex gap-1">
           {out ? (

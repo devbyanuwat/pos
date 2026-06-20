@@ -23,8 +23,8 @@ import {
   TR,
   TH,
   TD,
+  Stepper,
 } from "@/components/ui";
-import { OrderTimeline } from "@/components/shop/order-timeline";
 import { useHydrated } from "@/components/shop/use-hydrated";
 import { useStore } from "@/lib/store";
 import { ORDER_STATUS, CHANNEL_LABELS } from "@/lib/constants";
@@ -210,7 +210,15 @@ export default function OrderDetailPage({
               <h2 className="mb-5 text-base font-semibold text-slate-900 dark:text-slate-50">
                 สถานะคำสั่งซื้อ
               </h2>
-              <OrderTimeline order={order} />
+              <Stepper
+                steps={["รอชำระเงิน", "ชำระแล้ว", "กำลังชง", "เสิร์ฟแล้ว"]}
+                current={
+                  order.status === "completed"
+                    ? 4
+                    : ["pending_payment", "paid", "packing"].indexOf(order.status)
+                }
+                cancelled={order.status === "cancelled"}
+              />
             </CardContent>
           </Card>
         </div>

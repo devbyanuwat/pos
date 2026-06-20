@@ -3,18 +3,62 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-primary: #4f46e5;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #0ea5e9;
-  --color-accent: #f59e0b;
-  --color-success: #10b981;
-  --color-danger: #ef4444;
-  --color-ring: #6366f1;
+  /* ----- Teddy Boost brand (from the logo) ----- */
+  --color-primary: #1f7a44;
+  --color-primary-foreground: #fffdf8;
+  --color-secondary: #f0c58f; /* tan / Teddy */
+  --color-accent: #b97a10;
+  --color-success: #1f7a44;
+  --color-danger: #b5443c;
+  --color-warning: #b97a10;
+  --color-info: #2d6a8a;
+  --color-ring: #1f7a44;
+
+  --color-forest-700: #1e5b38;
+  --color-forest-900: #143d26;
+  --color-pine-600: #2f5d50;
+  --color-mocha-500: #a6815e;
+  --color-tan-300: #f0c58f;
+  --color-cream-50: #fffdf8;
+  --color-cream-100: #f8f2e7;
+
+  /* ----- Re-skin the slate scale to warm green-grey so existing
+     text-slate / bg-slate usages adopt the Teddy palette automatically ----- */
+  --color-slate-50: #fffdf8;
+  --color-slate-100: #f8f2e7;
+  --color-slate-200: #ede7da;
+  --color-slate-300: #d8ddd4;
+  --color-slate-400: #8e9b92;
+  --color-slate-500: #5b6b61;
+  --color-slate-600: #4a584f;
+  --color-slate-700: #3a4a40;
+  --color-slate-800: #2b3a32;
+  --color-slate-900: #21302a;
+  --color-slate-950: #143d26;
+
+  /* ----- Remap accent palettes used across components to Teddy semantics ----- */
+  --color-emerald-400: #2c9158;
+  --color-emerald-500: #1f7a44;
+  --color-emerald-600: #1e5b38;
+  --color-red-400: #c75b53;
+  --color-red-500: #b5443c;
+  --color-red-600: #7e2f29;
+  --color-amber-400: #cf9433;
+  --color-amber-500: #b97a10;
+  --color-amber-600: #7a5208;
+  --color-sky-400: #4f8fad;
+  --color-sky-500: #2d6a8a;
+  --color-sky-600: #235673;
+  --color-indigo-400: #2c9158;
+  --color-indigo-500: #1f7a44;
+  --color-indigo-600: #1e5b38;
 
   --font-sans: var(--font-ibm-thai), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-mitr), var(--font-ibm-thai), sans-serif;
+  --font-accent: var(--font-caveat), cursive;
   --font-mono: var(--font-ibm-mono), ui-monospace, "SFMono-Regular", monospace;
 
-  --radius-glass: 1rem;
+  --radius-glass: 20px;
 }
 
 @layer base {
@@ -28,19 +72,28 @@
   body {
     min-height: 100dvh;
     font-family: var(--font-sans);
-    color: #0f172a;
-    background:
-      radial-gradient(1100px 560px at 8% -12%, #e0e7ff 0%, transparent 60%),
-      radial-gradient(900px 480px at 102% 4%, #cffafe 0%, transparent 55%),
-      linear-gradient(180deg, #f8fafc 0%, #eef1f7 100%);
+    color: #21302a;
+    background-color: #fffdf8;
+    background-image:
+      radial-gradient(1100px 620px at 100% -8%, #f8f2e7 0%, transparent 55%),
+      radial-gradient(900px 520px at -8% 0%, #fcf0d9 0%, transparent 50%);
     background-attachment: fixed;
   }
   html.dark body {
-    color: #e2e8f0;
-    background:
-      radial-gradient(1100px 560px at 8% -12%, #1e1b4b 0%, transparent 60%),
-      radial-gradient(900px 480px at 102% 4%, #083344 0%, transparent 55%),
-      linear-gradient(180deg, #020617 0%, #0b1120 100%);
+    color: #fffdf8;
+    background-color: #143d26;
+    background-image:
+      radial-gradient(1100px 620px at 100% -8%, #1e5b38 0%, transparent 55%),
+      radial-gradient(900px 520px at -8% 0%, #2f5d50 0%, transparent 50%);
+  }
+
+  /* Mitr display font for all headings (Teddy typography) */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
   }
 
   *:focus-visible {
@@ -48,48 +101,46 @@
     outline-offset: 2px;
   }
 
-  /* Tabular figures for prices / data so columns do not jitter. */
   .font-mono {
     font-variant-numeric: tabular-nums;
   }
 }
 
 @layer components {
-  /* Standard frosted surface for chrome (sidebar, top bar, cards, modals). */
+  /* Teddy surfaces: the old "glass" classes are re-skinned into warm solid
+     cards with a soft shadow (no frosted blur). Every existing .glass usage
+     across the app adopts the new look automatically. */
   .glass {
-    background: rgba(255, 255, 255, 0.62);
-    backdrop-filter: blur(20px) saturate(140%);
-    -webkit-backdrop-filter: blur(20px) saturate(140%);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    box-shadow: 0 10px 34px rgba(2, 6, 23, 0.08);
+    background: #fffdf8;
+    border: 1px solid #ede7da;
+    box-shadow: 0 2px 8px rgba(20, 61, 38, 0.08);
   }
-  /* High-opacity surface for dense data (tables, finance) so text stays readable. */
   .glass-strong {
-    background: rgba(255, 255, 255, 0.86);
-    backdrop-filter: blur(12px) saturate(130%);
-    -webkit-backdrop-filter: blur(12px) saturate(130%);
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    box-shadow: 0 10px 30px rgba(2, 6, 23, 0.06);
+    background: #ffffff;
+    border: 1px solid #e6ebe2;
+    box-shadow: 0 2px 12px rgba(20, 61, 38, 0.1);
   }
-  /* Lightest glass for nested panels / hover layers. */
   .glass-subtle {
-    background: rgba(255, 255, 255, 0.42);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: #f8f2e7;
+    border: 1px solid #ede7da;
   }
 
   html.dark .glass {
-    background: rgba(15, 23, 42, 0.55);
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+    background: #1b4630;
+    border-color: rgba(255, 253, 248, 0.08);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
   }
   html.dark .glass-strong {
-    background: rgba(15, 23, 42, 0.82);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: #1e5b38;
+    border-color: rgba(255, 253, 248, 0.1);
   }
   html.dark .glass-subtle {
-    background: rgba(15, 23, 42, 0.42);
-    border-color: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 253, 248, 0.05);
+    border-color: rgba(255, 253, 248, 0.08);
+  }
+
+  /* Accent wordmark (Caveat Brush) for the logo */
+  .font-accent {
+    font-family: var(--font-accent);
   }
 }

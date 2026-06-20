@@ -14,3 +14,5 @@ export * from "./avatar";
 export * from "./toaster";
 export * from "./numpad";
 export * from "./qr-code";
+export * from "./stepper";
+export * from "./menu-image";

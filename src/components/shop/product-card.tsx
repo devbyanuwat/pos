@@ -1,9 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { ShoppingCart, PackageX } from "lucide-react";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, MenuImage } from "@/components/ui";
 import { formatTHB } from "@/lib/utils";
 import { getPriceForCustomer } from "@/lib/selectors";
 import type { Customer, PricingTier, Product } from "@/lib/types";
@@ -30,15 +29,12 @@ export function ProductCard({
     <div className="glass group flex flex-col overflow-hidden rounded-2xl transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
       <Link
         href={`/shop/${product.id}`}
-        className="relative block aspect-square overflow-hidden bg-slate-500/5"
+        className="relative block aspect-square overflow-hidden"
       >
-        <Image
+        <MenuImage
           src={product.image}
           alt={product.name}
-          fill
-          unoptimized
-          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-          className="object-cover transition-transform duration-300 group-hover:scale-105"
+          className="absolute inset-0 transition-transform duration-300 group-hover:scale-105"
         />
         {soldOut && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-900/45 backdrop-blur-[1px]">
