@@ -164,3 +164,134 @@ Always show values (tooltip + axis). Wrap charts in a `Card`.
 ## Seed reference
 
 Login presets (password `1234`): owner@demo.pos, manager@demo.pos, staff@demo.pos, somchai@demo.pos (VIP customer), mani@demo.pos (retail customer). 25 products, 5 customers, 3 tiers, ~120 orders over 30 days, expenses + purchases seeded.
+
+## Coffee Pivot Contract
+
+Brew & Bean Café pivot. Strategy is **additive**: every existing field/key/shape still compiles; new fields are OPTIONAL; only strings were relabeled. Untouched pages (finance/reports/customers/discounts/users/settings) keep working.
+
+### New / changed types (`@/lib/types`)
+
+```ts
+MenuOptionChoice = { id: string; label: string; priceDelta: number }
+MenuOption       = { id: string; name: string; choices: MenuOptionChoice[] }
+RecipeLine       = { ingredientId: string; qty: number }
+
+Ingredient = { id; name; unit: string; stock: number; lowThreshold: number;
+               expiryDate: string /*ISO*/; cost: number; createdAt: string }
+Table      = { id; name; seats?: number; createdAt: string }
+
+// additive optional fields:
+Product.options?:  MenuOption[]
+Product.recipe?:   RecipeLine[]
+Customer.points?:  number
+OrderItem.options?: string[]                 // chosen choice labels e.g. ["L","หวาน 50%"]
+OrderChannel = "online" | "pos" | "qr"        // extended (was online|pos)
+Order.tableId?:        string
+Order.paymentMethod?:  "cash" | "slip" | "counter"
+Order.pointsEarned?:   number
+Order.pointsRedeemed?: number
+Settings.earnRate?:    number  // baht spent per 1 point earned (seed: 20)
+Settings.redeemValue?: number  // baht value of 1 point on redeem (seed: 1)
+```
+
+### New store state arrays (`@/lib/store`)
+
+`ingredients: Ingredient[]`, `tables: Table[]` — seeded, persisted. Plus `NewIngredient = Omit<Ingredient,"id"|"createdAt">`.
+
+### New store action signatures
+
+```ts
+// customers
+adjustCustomerPoints(id: string, delta: number): void   // clamps >= 0
+
+// ingredients
+addIngredient(i: NewIngredient): Ingredient
+updateIngredient(id: string, patch: Partial<Ingredient>): void
+removeIngredient(id: string): void                       // hard delete
+adjustIngredient(id: string, delta: number): void        // clamps >= 0
+receiveIngredients(input: {
+  supplier?: string;
+  items: { ingredientId: string; qty: number; unitCost: number; expiryDate?: string }[];
+  note?: string;
+}): void   // adds qty to stock, sets cost=unitCost, updates expiryDate when provided
+
+// tables
+addTable(t: { name: string; seats?: number }): Table
+updateTable(id: string, patch: Partial<Table>): void
+removeTable(id: string): void
+```
+
+`addCustomer` now defaults `points` to `0` when not supplied.
+
+### Extended `createOrder` — items + options shape
+
+`createOrder(CreateOrderInput): Order`. Old `{ productId, qty }` items still valid.
+
+```ts
+CreateOrderInput = {
+  customerId: string | null;                 // null = walk-in
+  channel: "online" | "pos" | "qr";
+  items: {
+    productId: string;
+    qty: number;
+    options?: { label: string; priceDelta: number }[];   // additive
+  }[];
+  discount?: { amount: number; label?: string };
+  noAutoDiscount?: boolean;
+  status?: OrderStatus;                       // default: online="pending_payment", else "paid"
+  paymentSlip?: string;
+  createdBy?: string;
+  orderType?: OrderChannel;                   // overrides stored channel; default = channel
+  tableId?: string;                           // for qr
+  paymentMethod?: "cash" | "slip" | "counter";
+  pointsRedeemed?: number;                    // member only
+}
+```
+
+Order math:
+- `unitPrice = getPriceForCustomer(product, customer, tiers) + sum(option.priceDelta)`; `OrderItem.options = options.map(o => o.label)`.
+- Redemption: `redeemAmount = min(pointsRedeemed * (settings.redeemValue ?? 1), subtotal - discount)`, applied as extra discount; only when a customer exists and within their balance.
+- `total = max(0, subtotal - discount - redeemAmount)`.
+- Earn: on a settled order (`paid|packing|completed`) **with a customerId**, `pointsEarned = floor(total / (settings.earnRate ?? 20))`.
+- Customer balance updated: `points += pointsEarned - pointsRedeemed` (clamped >= 0). `pointsEarned/pointsRedeemed/tableId/paymentMethod` persisted on the order. Walk-in (no customer) earns/redeems nothing.
+
+### New pure selectors (`@/lib/selectors`)
+
+```ts
+daysToExpiry(iso: string, now=new Date()): number          // negative = expired
+expiringIngredients(ingredients, withinDays=7, now=new Date()): Ingredient[]
+  // expiryDate <= now+days, includes already-expired, sorted asc by expiry
+menuItemsUsingIngredient(products, ingredientId): Product[] // recipe includes it
+pointsEarnedFor(total, settings): number                   // floor(total / earnRate)
+pointsBahtValue(points, settings): number                  // points * redeemValue
+```
+
+### Relabeled constants (`@/lib/constants`) — keys UNCHANGED
+
+```ts
+ORDER_STATUS = {
+  pending_payment: { label: "รอชำระเงิน",        tone: "warning" },
+  paid:            { label: "ชำระแล้ว · รอชง",    tone: "info" },
+  packing:         { label: "กำลังชง",           tone: "primary" },
+  completed:       { label: "เสิร์ฟแล้ว",         tone: "success" },
+  cancelled:       { label: "ยกเลิก",            tone: "danger" },
+}
+CHANNEL_LABELS  = { online: "ออนไลน์", pos: "เคาน์เตอร์", qr: "QR โต๊ะ" }
+PAYMENT_LABELS  = { cash: "เงินสด", slip: "โอน/สลิป", counter: "จ่ายที่เคาน์เตอร์" }  // NEW
+```
+
+`NEXT_STATUS` flow unchanged (`pending_payment→paid→packing→completed`).
+
+### Nav routes (`@/lib/nav`) — roles preserved
+
+ADMIN_NAV: `/admin` ภาพรวม · `/admin/products` เมนู (Coffee) · `/admin/stock` วัตถุดิบ (Boxes) · `/admin/purchases` รับวัตถุดิบเข้า (Truck) · **`/admin/tables` โต๊ะ & QR (NEW, manager+, QrCode)** · **`/admin/loyalty` สมาชิก & คะแนน (NEW, manager+, Sparkles)** · `/admin/customers` ลูกค้า · `/admin/reports` รายงานการขาย · `/admin/discounts` ส่วนลด · `/admin/finance` บัญชี / การเงิน (owner) · `/admin/expenses` รายจ่าย (owner) · `/admin/users` ผู้ใช้ / สิทธิ์ (owner) · `/admin/settings` ตั้งค่า (owner).
+
+POS_NAV: `/pos` ขายเคาน์เตอร์ · `/pos/orders` ออเดอร์ · `/pos/pack` คิวชง / เสิร์ฟ.
+
+### Settings loyalty
+
+`settings.earnRate` (baht spent per 1 point earned; seed `20`) and `settings.redeemValue` (baht per 1 point on redeem; seed `1`). Both optional — use `?? 20` / `?? 1` fallbacks.
+
+### Coffee seed summary
+
+Anchor = 2026-06-20. Shop "Brew & Bean Café", startingCash 30000, lowStockThreshold 5, earnRate 20, redeemValue 1. 6 categories, 20 menu items (with options + recipe linking ingredient ids), 12 ingredients (นมสด/วิปปิ้งครีม/ครีมเทียมสด/ไซรัปคาราเมล expire in 2-6 days to demo alerts), 8 tables (โต๊ะ 1-6, Bar 1, Bar 2), 5 customers (points 120/0/340/880/50), same owner/manager/staff + 2 customer logins (password 1234), ~30 days of orders via seeded PRNG (channel mix qr/pos/online ≈ 40/40/20, qr orders carry tableId, paymentMethod set, member orders carry pointsEarned, items carry option labels). `buildSeed()` returns `ingredients` + `tables` too. Purchases reuse the `Purchase` shape but put ingredient ids in `item.productId`.

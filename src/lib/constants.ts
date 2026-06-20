@@ -11,9 +11,9 @@ export type Tone = "neutral" | "primary" | "info" | "success" | "warning" | "dan
 
 export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: Tone }> = {
   pending_payment: { label: "รอชำระเงิน", tone: "warning" },
-  paid: { label: "ชำระแล้ว", tone: "info" },
-  packing: { label: "กำลังแพ็ก", tone: "primary" },
-  completed: { label: "เสร็จสมบูรณ์", tone: "success" },
+  paid: { label: "ชำระแล้ว · รอชง", tone: "info" },
+  packing: { label: "กำลังชง", tone: "primary" },
+  completed: { label: "เสิร์ฟแล้ว", tone: "success" },
   cancelled: { label: "ยกเลิก", tone: "danger" },
 };
 
@@ -34,7 +34,14 @@ export const EXPENSE_TYPE_LABELS: Record<ExpenseType, string> = {
 
 export const CHANNEL_LABELS = {
   online: "ออนไลน์",
-  pos: "หน้าร้าน",
+  pos: "เคาน์เตอร์",
+  qr: "QR โต๊ะ",
+} as const;
+
+export const PAYMENT_LABELS = {
+  cash: "เงินสด",
+  slip: "โอน/สลิป",
+  counter: "จ่ายที่เคาน์เตอร์",
 } as const;
 
 export function homeForRole(role: Role): string {

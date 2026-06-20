@@ -1,7 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Package, Plus, Pencil, Trash2, Search } from "lucide-react";
+import {
+  Coffee,
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  SlidersHorizontal,
+  FlaskConical,
+  LayoutGrid,
+  Percent,
+} from "lucide-react";
 import {
   PageHeader,
   Card,
@@ -18,20 +28,26 @@ import {
   TD,
   Dialog,
   EmptyState,
+  StatCard,
   toast,
 } from "@/components/ui";
-import {
-  ProductImage,
-  ProductFormDialog,
-  type ProductFormSubmit,
-} from "@/components/admin/catalog";
+import { MenuImage, MenuFormDialog, type MenuFormSubmit } from "@/components/admin/menu";
 import { useStore } from "@/lib/store";
 import type { Product } from "@/lib/types";
 import { cn, formatTHB } from "@/lib/utils";
 
-export default function ProductsPage() {
+function marginOf(p: Product): number {
+  return p.basePrice > 0 ? Math.round(((p.basePrice - p.cost) / p.basePrice) * 100) : 0;
+}
+
+function marginTone(margin: number): "success" | "warning" | "danger" {
+  return margin >= 50 ? "success" : margin >= 25 ? "warning" : "danger";
+}
+
+export default function MenuPage() {
   const products = useStore((s) => s.products);
   const categories = useStore((s) => s.categories);
+  const ingredients = useStore((s) => s.ingredients);
   const addProduct = useStore((s) => s.addProduct);
   const updateProduct = useStore((s) => s.updateProduct);
   const removeProduct = useStore((s) => s.removeProduct);
@@ -51,14 +67,19 @@ export default function ProductsPage() {
     return products
       .filter((p) => (showInactive ? true : p.active))
       .filter((p) => (categoryFilter === "all" ? true : p.categoryId === categoryFilter))
-      .filter(
-        (p) =>
-          !q ||
-          p.name.toLowerCase().includes(q) ||
-          p.sku.toLowerCase().includes(q),
-      )
-      .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, "th"));
+      .filter((p) => !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))
+      .sort(
+        (a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, "th"),
+      );
   }, [products, query, categoryFilter, showInactive]);
+
+  const stats = useMemo(() => {
+    const active = products.filter((p) => p.active);
+    const avgMargin = active.length
+      ? Math.round(active.reduce((a, p) => a + marginOf(p), 0) / active.length)
+      : 0;
+    return { total: active.length, categories: categories.length, avgMargin };
+  }, [products, categories]);
 
   function openCreate() {
     setEditing(null);
@@ -70,13 +91,13 @@ export default function ProductsPage() {
     setFormOpen(true);
   }
 
-  function handleSubmit(data: ProductFormSubmit) {
+  function handleSubmit(data: MenuFormSubmit) {
     if (editing) {
       updateProduct(editing.id, data);
-      toast.success("บันทึกการแก้ไขสินค้าแล้ว");
+      toast.success("บันทึกการแก้ไขเมนูแล้ว");
     } else {
       addProduct(data);
-      toast.success("เพิ่มสินค้าใหม่แล้ว");
+      toast.success("เพิ่มเมนูใหม่แล้ว");
     }
     setFormOpen(false);
     setEditing(null);
@@ -85,21 +106,33 @@ export default function ProductsPage() {
   function confirmDelete() {
     if (!deleting) return;
     removeProduct(deleting.id);
-    toast.success(`นำ "${deleting.name}" ออกจากการขายแล้ว`);
+    toast.success(`นำ "${deleting.name}" ออกจากเมนูแล้ว`);
     setDeleting(null);
   }
 
   return (
     <div>
       <PageHeader
-        title="จัดการสินค้า"
-        description="เพิ่ม แก้ไข และจัดการรายการสินค้าทั้งหมดในร้าน"
+        title="จัดการเมนู"
+        description="เพิ่ม แก้ไข ตั้งราคา ตัวเลือก และสูตรของเมนูทั้งหมดในร้าน"
         actions={
           <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> เพิ่มสินค้า
+            <Plus className="h-4 w-4" /> เพิ่มเมนู
           </Button>
         }
       />
+
+      <div className="mb-5 grid gap-3 sm:grid-cols-3">
+        <StatCard label="เมนูที่เปิดขาย" value={stats.total} icon={Coffee} tone="primary" />
+        <StatCard label="หมวดหมู่" value={stats.categories} icon={LayoutGrid} tone="info" />
+        <StatCard
+          label="กำไรเฉลี่ย"
+          value={`${stats.avgMargin}%`}
+          icon={Percent}
+          tone="success"
+          hint="เฉพาะเมนูที่เปิดขาย"
+        />
+      </div>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
@@ -107,7 +140,7 @@ export default function ProductsPage() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="ค้นหาชื่อสินค้า หรือ SKU"
+            placeholder="ค้นหาชื่อเมนู หรือ SKU"
             className="pl-10"
           />
         </div>
@@ -133,12 +166,12 @@ export default function ProductsPage() {
         <CardContent className="p-0 sm:p-0">
           {rows.length === 0 ? (
             <EmptyState
-              icon={Package}
-              title="ไม่พบสินค้า"
-              description="ลองปรับคำค้นหา หรือเพิ่มสินค้าใหม่เข้าระบบ"
+              icon={Coffee}
+              title="ไม่พบเมนู"
+              description="ลองปรับคำค้นหา หรือเพิ่มเมนูใหม่เข้าร้าน"
               action={
                 <Button onClick={openCreate}>
-                  <Plus className="h-4 w-4" /> เพิ่มสินค้า
+                  <Plus className="h-4 w-4" /> เพิ่มเมนู
                 </Button>
               }
             />
@@ -147,24 +180,22 @@ export default function ProductsPage() {
               <THead>
                 <TR>
                   <TH className="w-14">รูป</TH>
-                  <TH>SKU</TH>
-                  <TH>ชื่อสินค้า</TH>
-                  <TH>หมวดหมู่</TH>
-                  <TH className="text-right">ต้นทุน</TH>
+                  <TH>เมนู</TH>
+                  <TH className="hidden md:table-cell">หมวดหมู่</TH>
+                  <TH className="hidden text-right sm:table-cell">ต้นทุน</TH>
                   <TH className="text-right">ราคาขาย</TH>
                   <TH className="text-right">กำไร%</TH>
-                  <TH className="text-right">สต๊อก</TH>
+                  <TH className="hidden lg:table-cell">ตัวเลือก</TH>
+                  <TH className="hidden lg:table-cell">สูตร</TH>
                   <TH>สถานะ</TH>
                   <TH className="text-right">จัดการ</TH>
                 </TR>
               </THead>
               <TBody>
                 {rows.map((p) => {
-                  const margin =
-                    p.basePrice > 0
-                      ? Math.round(((p.basePrice - p.cost) / p.basePrice) * 100)
-                      : 0;
-                  const isLow = p.stock <= p.lowStockThreshold;
+                  const margin = marginOf(p);
+                  const optionCount = p.options?.length ?? 0;
+                  const recipeCount = p.recipe?.length ?? 0;
                   return (
                     <TR
                       key={p.id}
@@ -174,23 +205,47 @@ export default function ProductsPage() {
                       )}
                     >
                       <TD>
-                        <ProductImage src={p.image} alt={p.name} size={40} />
+                        <MenuImage src={p.image} alt={p.name} size={40} />
                       </TD>
-                      <TD className="font-mono text-xs text-slate-500 dark:text-slate-400">
-                        {p.sku}
+                      <TD>
+                        <div className="font-medium text-slate-900 dark:text-slate-100">
+                          {p.name}
+                        </div>
+                        <div className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                          {p.sku}
+                        </div>
                       </TD>
-                      <TD className="font-medium text-slate-900 dark:text-slate-100">{p.name}</TD>
-                      <TD className="text-slate-500 dark:text-slate-400">
+                      <TD className="hidden text-slate-500 dark:text-slate-400 md:table-cell">
                         {categoryName(p.categoryId)}
                       </TD>
-                      <TD className="text-right font-mono">{formatTHB(p.cost)}</TD>
+                      <TD className="hidden text-right font-mono sm:table-cell">
+                        {formatTHB(p.cost)}
+                      </TD>
                       <TD className="text-right font-mono font-medium">{formatTHB(p.basePrice)}</TD>
-                      <TD className="text-right font-mono text-emerald-500">{margin}%</TD>
                       <TD className="text-right">
-                        <span className="inline-flex items-center justify-end gap-2">
-                          <span className="font-mono">{p.stock}</span>
-                          {isLow && <Badge tone="danger">ใกล้หมด</Badge>}
-                        </span>
+                        <Badge tone={marginTone(margin)} className="font-mono">
+                          {margin}%
+                        </Badge>
+                      </TD>
+                      <TD className="hidden lg:table-cell">
+                        {optionCount > 0 ? (
+                          <span className="inline-flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+                            <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
+                            {optionCount} ตัวเลือก
+                          </span>
+                        ) : (
+                          <span className="text-sm text-slate-400">-</span>
+                        )}
+                      </TD>
+                      <TD className="hidden lg:table-cell">
+                        {recipeCount > 0 ? (
+                          <span className="inline-flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+                            <FlaskConical className="h-3.5 w-3.5 text-slate-400" />
+                            <span className="font-mono">{recipeCount}</span> วัตถุดิบ
+                          </span>
+                        ) : (
+                          <span className="text-sm text-slate-400">-</span>
+                        )}
                       </TD>
                       <TD>
                         {p.active ? (
@@ -230,7 +285,7 @@ export default function ProductsPage() {
         </CardContent>
       </Card>
 
-      <ProductFormDialog
+      <MenuFormDialog
         open={formOpen}
         onClose={() => {
           setFormOpen(false);
@@ -239,15 +294,16 @@ export default function ProductsPage() {
         onSubmit={handleSubmit}
         product={editing}
         categories={categories}
+        ingredients={ingredients}
       />
 
       <Dialog
         open={!!deleting}
         onClose={() => setDeleting(null)}
-        title="ยืนยันการลบสินค้า"
+        title="ยืนยันการลบเมนู"
         description={
           deleting
-            ? `ต้องการนำ "${deleting.name}" ออกจากการขายใช่หรือไม่ สินค้าจะถูกซ่อน แต่ประวัติการขายยังคงอยู่`
+            ? `ต้องการนำ "${deleting.name}" ออกจากเมนูใช่หรือไม่ เมนูจะถูกซ่อน แต่ประวัติการขายยังคงอยู่`
             : undefined
         }
         footer={
@@ -256,7 +312,7 @@ export default function ProductsPage() {
               ยกเลิก
             </Button>
             <Button variant="danger" onClick={confirmDelete}>
-              <Trash2 className="h-4 w-4" /> ลบสินค้า
+              <Trash2 className="h-4 w-4" /> ลบเมนู
             </Button>
           </>
         }

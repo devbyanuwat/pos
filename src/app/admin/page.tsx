@@ -21,6 +21,8 @@ import {
   AlertTriangle,
   ArrowUpRight,
   PackageSearch,
+  CalendarClock,
+  CalendarCheck,
 } from "lucide-react";
 import {
   PageHeader,
@@ -39,9 +41,13 @@ import {
   financeSummary,
   salesByDay,
   lowStockProducts,
+  expiringIngredients,
+  daysToExpiry,
   rangeForPreset,
   type RangePreset,
 } from "@/lib/selectors";
+import { expiryCountdownLabel } from "@/components/admin/ingredients";
+import { formatDate } from "@/lib/utils";
 import { ORDER_STATUS } from "@/lib/constants";
 import { formatTHB, formatNumber, formatDateTime } from "@/lib/utils";
 import {
@@ -58,6 +64,7 @@ export default function AdminOverviewPage() {
   const expenses = useStore((s) => s.expenses);
   const purchases = useStore((s) => s.purchases);
   const products = useStore((s) => s.products);
+  const ingredients = useStore((s) => s.ingredients);
   const settings = useStore((s) => s.settings);
 
   const [preset, setPreset] = useState<RangePreset>("30d");
@@ -72,6 +79,8 @@ export default function AdminOverviewPage() {
   const series = useMemo(() => salesByDay(orders, rangeForPreset("30d")), [orders]);
 
   const lowStock = useMemo(() => lowStockProducts(products), [products]);
+
+  const expiringSoon = useMemo(() => expiringIngredients(ingredients, 7), [ingredients]);
 
   const recentOrders = useMemo(
     () =>
@@ -236,6 +245,54 @@ export default function AdminOverviewPage() {
                     </Badge>
                   </li>
                 ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mt-4">
+        <Card className="flex flex-col">
+          <CardHeader className="flex-row items-center justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <CalendarClock className="h-5 w-5 text-amber-500" /> วัตถุดิบใกล้หมดอายุ
+              </CardTitle>
+              <CardDescription className="mt-1">ภายใน 7 วัน — ใช้ก่อนหรือสั่งล็อตใหม่</CardDescription>
+            </div>
+            <Link href="/admin/stock" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+              จัดการวัตถุดิบ
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </CardHeader>
+          <CardContent className="flex-1">
+            {expiringSoon.length === 0 ? (
+              <EmptyState
+                icon={CalendarCheck}
+                title="ยังไม่มีวัตถุดิบใกล้หมดอายุ"
+                description="ทุกวัตถุดิบยังอยู่ในช่วงใช้งานได้"
+              />
+            ) : (
+              <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {expiringSoon.slice(0, 6).map((ing) => {
+                  const days = daysToExpiry(ing.expiryDate);
+                  return (
+                    <li
+                      key={ing.id}
+                      className="glass-subtle flex items-center justify-between gap-3 rounded-xl px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+                          {ing.name}
+                        </p>
+                        <p className="font-mono text-xs text-slate-400">{formatDate(ing.expiryDate)}</p>
+                      </div>
+                      <Badge tone={days < 0 ? "danger" : "warning"}>
+                        {expiryCountdownLabel(days)}
+                      </Badge>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </CardContent>

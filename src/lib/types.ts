@@ -46,12 +46,35 @@ export interface Customer {
   /** Per-product fixed price overrides set by an admin. productId -> price. */
   customPrices?: Record<string, number>;
   note?: string;
+  /** Loyalty points balance. Coffee pivot. */
+  points?: number;
   createdAt: string;
 }
 
 export interface Category {
   id: string;
   name: string;
+}
+
+/** A single selectable value within a menu option group. Coffee pivot. */
+export interface MenuOptionChoice {
+  id: string;
+  label: string;
+  /** Baht added to (or removed from) the unit price when chosen. */
+  priceDelta: number;
+}
+
+/** A menu option group, e.g. size or sweetness. Coffee pivot. */
+export interface MenuOption {
+  id: string;
+  name: string;
+  choices: MenuOptionChoice[];
+}
+
+/** A bill-of-materials line linking a menu item to an ingredient. Coffee pivot. */
+export interface RecipeLine {
+  ingredientId: string;
+  qty: number;
 }
 
 export interface Product {
@@ -68,6 +91,33 @@ export interface Product {
   lowStockThreshold: number;
   description?: string;
   active: boolean;
+  /** Customizable option groups (size, sweetness, hot/iced...). Coffee pivot. */
+  options?: MenuOption[];
+  /** Ingredients consumed to make one unit. Coffee pivot. */
+  recipe?: RecipeLine[];
+  createdAt: string;
+}
+
+/** A raw material / consumable tracked in stock. Coffee pivot. */
+export interface Ingredient {
+  id: string;
+  name: string;
+  /** Unit of measure label, e.g. "กรัม", "มล.", "ขวด". */
+  unit: string;
+  stock: number;
+  lowThreshold: number;
+  /** ISO date the lot expires. */
+  expiryDate: string;
+  /** Cost per unit. */
+  cost: number;
+  createdAt: string;
+}
+
+/** A dine-in table / bar seat for QR ordering. Coffee pivot. */
+export interface Table {
+  id: string;
+  name: string;
+  seats?: number;
   createdAt: string;
 }
 
@@ -78,17 +128,19 @@ export type OrderStatus =
   | "completed"
   | "cancelled";
 
-export type OrderChannel = "online" | "pos";
+export type OrderChannel = "online" | "pos" | "qr";
 
 export interface OrderItem {
   productId: string;
   name: string;
   sku: string;
   qty: number;
-  /** Unit price actually charged, after tier / custom pricing. */
+  /** Unit price actually charged, after tier / custom pricing + option deltas. */
   unitPrice: number;
   /** Unit cost snapshot at sale time, for profit math. */
   cost: number;
+  /** Chosen option choice labels, e.g. ["L", "หวาน 50%"]. Coffee pivot. */
+  options?: string[];
 }
 
 export interface Order {
@@ -108,6 +160,14 @@ export interface Order {
   /** Uploaded slip data URL. */
   paymentSlip?: string;
   slipVerified: boolean;
+  /** Dine-in table for QR orders. Coffee pivot. */
+  tableId?: string;
+  /** How the order was paid. Coffee pivot. */
+  paymentMethod?: "cash" | "slip" | "counter";
+  /** Loyalty points earned on this order. Coffee pivot. */
+  pointsEarned?: number;
+  /** Loyalty points redeemed as a discount on this order. Coffee pivot. */
+  pointsRedeemed?: number;
   createdAt: string;
   createdBy?: string;
   paidAt?: string;
@@ -164,6 +224,10 @@ export interface Settings {
   startingCash: number;
   currency: string;
   lowStockThreshold: number;
+  /** Baht spent to earn 1 loyalty point, e.g. 20. Coffee pivot. */
+  earnRate?: number;
+  /** Baht value of 1 loyalty point when redeemed, e.g. 1. Coffee pivot. */
+  redeemValue?: number;
 }
 
 /** Computed finance figures for a date range. */

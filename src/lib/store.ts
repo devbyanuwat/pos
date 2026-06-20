@@ -15,6 +15,8 @@ import type {
   Purchase,
   Expense,
   TierId,
+  Ingredient,
+  Table,
 } from "./types";
 import { buildSeed } from "./seed";
 import { getPriceForCustomer, bestDiscount } from "./selectors";
@@ -30,11 +32,25 @@ export type NewCustomer = Omit<Customer, "id" | "createdAt">;
 export type NewUser = Omit<User, "id" | "createdAt">;
 export type NewExpense = Omit<Expense, "id">;
 export type NewDiscount = Omit<Discount, "id">;
+export type NewIngredient = Omit<Ingredient, "id" | "createdAt">;
+
+/** A chosen option on a cart/order line. Coffee pivot. */
+export interface OrderItemOption {
+  label: string;
+  priceDelta: number;
+}
+
+/** Order line input: old `{productId, qty}` still valid; `options` is additive. */
+export interface CreateOrderItemInput {
+  productId: string;
+  qty: number;
+  options?: OrderItemOption[];
+}
 
 export interface CreateOrderInput {
   customerId: string | null;
   channel: OrderChannel;
-  items: { productId: string; qty: number }[];
+  items: CreateOrderItemInput[];
   /** Manual discount override. If omitted, the best auto discount applies. */
   discount?: { amount: number; label?: string };
   /** Skip auto discount entirely (used when staff wants no discount). */
@@ -42,6 +58,14 @@ export interface CreateOrderInput {
   status?: OrderStatus;
   paymentSlip?: string;
   createdBy?: string;
+  /** Override channel for analytics labelling. Defaults to `channel`. Coffee pivot. */
+  orderType?: OrderChannel;
+  /** Dine-in table for QR orders. Coffee pivot. */
+  tableId?: string;
+  /** Payment method. Coffee pivot. */
+  paymentMethod?: "cash" | "slip" | "counter";
+  /** Loyalty points the customer redeems on this order. Coffee pivot. */
+  pointsRedeemed?: number;
 }
 
 export interface CreatePurchaseInput {
@@ -49,6 +73,12 @@ export interface CreatePurchaseInput {
   items: { productId: string; qty: number; unitCost: number }[];
   note?: string;
   createdBy?: string;
+}
+
+export interface ReceiveIngredientsInput {
+  supplier?: string;
+  items: { ingredientId: string; qty: number; unitCost: number; expiryDate?: string }[];
+  note?: string;
 }
 
 interface StoreState {
@@ -62,6 +92,8 @@ interface StoreState {
   orders: Order[];
   purchases: Purchase[];
   expenses: Expense[];
+  ingredients: Ingredient[];
+  tables: Table[];
 
   cart: CartItem[];
   currentUserId: string | null;
@@ -86,6 +118,19 @@ interface StoreState {
   updateCustomer: (id: string, patch: Partial<Customer>) => void;
   setCustomerTier: (id: string, tierId: TierId) => void;
   setCustomerCustomPrice: (id: string, productId: string, price: number | null) => void;
+  adjustCustomerPoints: (id: string, delta: number) => void;
+
+  // ingredients (coffee pivot)
+  addIngredient: (i: NewIngredient) => Ingredient;
+  updateIngredient: (id: string, patch: Partial<Ingredient>) => void;
+  removeIngredient: (id: string) => void;
+  adjustIngredient: (id: string, delta: number) => void;
+  receiveIngredients: (input: ReceiveIngredientsInput) => void;
+
+  // tables (coffee pivot)
+  addTable: (t: { name: string; seats?: number }) => Table;
+  updateTable: (id: string, patch: Partial<Table>) => void;
+  removeTable: (id: string) => void;
 
   // users
   addUser: (u: NewUser) => User;
@@ -187,7 +232,12 @@ export const useStore = create<StoreState>()(
       },
 
       addCustomer: (c) => {
-        const customer: Customer = { ...c, id: genId("cus"), createdAt: nowISO() };
+        const customer: Customer = {
+          ...c,
+          points: c.points ?? 0,
+          id: genId("cus"),
+          createdAt: nowISO(),
+        };
         set((s) => ({ customers: [customer, ...s.customers] }));
         return customer;
       },
@@ -209,6 +259,60 @@ export const useStore = create<StoreState>()(
             return { ...c, customPrices: next };
           }),
         })),
+      adjustCustomerPoints: (id, delta) =>
+        set((s) => ({
+          customers: s.customers.map((c) =>
+            c.id === id ? { ...c, points: Math.max(0, (c.points ?? 0) + delta) } : c,
+          ),
+        })),
+
+      addIngredient: (i) => {
+        const ingredient: Ingredient = { ...i, id: genId("ing"), createdAt: nowISO() };
+        set((s) => ({ ingredients: [ingredient, ...s.ingredients] }));
+        return ingredient;
+      },
+      updateIngredient: (id, patch) =>
+        set((s) => ({
+          ingredients: s.ingredients.map((i) => (i.id === id ? { ...i, ...patch } : i)),
+        })),
+      removeIngredient: (id) =>
+        set((s) => ({ ingredients: s.ingredients.filter((i) => i.id !== id) })),
+      adjustIngredient: (id, delta) =>
+        set((s) => ({
+          ingredients: s.ingredients.map((i) =>
+            i.id === id ? { ...i, stock: Math.max(0, i.stock + delta) } : i,
+          ),
+        })),
+      receiveIngredients: (input) =>
+        set((s) => ({
+          ingredients: s.ingredients.map((i) => {
+            const line = input.items.find((it) => it.ingredientId === i.id);
+            if (!line) return i;
+            return {
+              ...i,
+              stock: i.stock + line.qty,
+              cost: line.unitCost,
+              expiryDate: line.expiryDate ?? i.expiryDate,
+            };
+          }),
+        })),
+
+      addTable: (t) => {
+        const table: Table = {
+          id: genId("tbl"),
+          name: t.name,
+          seats: t.seats,
+          createdAt: nowISO(),
+        };
+        set((s) => ({ tables: [...s.tables, table] }));
+        return table;
+      },
+      updateTable: (id, patch) =>
+        set((s) => ({
+          tables: s.tables.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+        })),
+      removeTable: (id) =>
+        set((s) => ({ tables: s.tables.filter((t) => t.id !== id) })),
 
       addUser: (u) => {
         const user: User = { ...u, id: genId("usr"), createdAt: nowISO() };
@@ -255,17 +359,20 @@ export const useStore = create<StoreState>()(
           : null;
 
         const items: OrderItem[] = input.items
-          .map(({ productId, qty }) => {
+          .map(({ productId, qty, options }) => {
             const p = s.products.find((pr) => pr.id === productId);
             if (!p) return null;
-            return {
+            const optDelta = (options ?? []).reduce((a, o) => a + o.priceDelta, 0);
+            const item: OrderItem = {
               productId: p.id,
               name: p.name,
               sku: p.sku,
               qty,
-              unitPrice: getPriceForCustomer(p, customer, s.tiers),
+              unitPrice: getPriceForCustomer(p, customer, s.tiers) + optDelta,
               cost: p.cost,
-            } as OrderItem;
+            };
+            if (options && options.length) item.options = options.map((o) => o.label);
+            return item;
           })
           .filter((x): x is OrderItem => x !== null);
 
@@ -275,10 +382,23 @@ export const useStore = create<StoreState>()(
           : input.noAutoDiscount
             ? { amount: 0 }
             : bestDiscount(subtotal, customer, s.discounts);
-        const total = subtotal - disc.amount;
+
+        // Loyalty redemption: each point is worth redeemValue baht, capped at subtotal.
+        const redeemValue = s.settings.redeemValue ?? 1;
+        const wantRedeem = Math.max(0, Math.floor(input.pointsRedeemed ?? 0));
+        const customerPoints = customer?.points ?? 0;
+        const redeemPoints = customer ? Math.min(wantRedeem, customerPoints) : 0;
+        const redeemAmount = Math.min(redeemPoints * redeemValue, subtotal - disc.amount);
+        const total = Math.max(0, subtotal - disc.amount - redeemAmount);
 
         const status: OrderStatus =
-          input.status ?? (input.channel === "pos" ? "paid" : "pending_payment");
+          input.status ?? (input.channel === "online" ? "pending_payment" : "paid");
+
+        // Earn points on a settled order with a member.
+        const earnRate = s.settings.earnRate ?? 20;
+        const isSettled = ["paid", "packing", "completed"].includes(status);
+        const pointsEarned =
+          customer && isSettled && earnRate > 0 ? Math.floor(total / earnRate) : 0;
 
         const created = nowISO();
         const seq = s.orders.length + 1;
@@ -292,7 +412,7 @@ export const useStore = create<StoreState>()(
           code,
           customerId: customer ? customer.id : null,
           customerName: customer ? customer.name : "ลูกค้าหน้าร้าน",
-          channel: input.channel,
+          channel: input.orderType ?? input.channel,
           items,
           subtotal,
           discount: disc.amount,
@@ -301,6 +421,10 @@ export const useStore = create<StoreState>()(
           status,
           paymentSlip: input.paymentSlip,
           slipVerified: ["paid", "packing", "completed"].includes(status),
+          tableId: input.tableId,
+          paymentMethod: input.paymentMethod,
+          pointsEarned: pointsEarned > 0 ? pointsEarned : undefined,
+          pointsRedeemed: redeemPoints > 0 ? redeemPoints : undefined,
           createdAt: created,
           createdBy: input.createdBy,
           ...statusTimestamps(status),
@@ -312,6 +436,16 @@ export const useStore = create<StoreState>()(
             const line = items.find((i) => i.productId === p.id);
             return line ? { ...p, stock: Math.max(0, p.stock - line.qty) } : p;
           }),
+          customers: customer
+            ? st.customers.map((c) =>
+                c.id === customer.id
+                  ? {
+                      ...c,
+                      points: Math.max(0, (c.points ?? 0) - redeemPoints + pointsEarned),
+                    }
+                  : c,
+              )
+            : st.customers,
         }));
         return order;
       },
@@ -430,6 +564,8 @@ export const useStore = create<StoreState>()(
         orders: s.orders,
         purchases: s.purchases,
         expenses: s.expenses,
+        ingredients: s.ingredients,
+        tables: s.tables,
         cart: s.cart,
         currentUserId: s.currentUserId,
       }),

@@ -11,6 +11,8 @@ import {
   ShoppingBag,
   UserCircle,
   Info,
+  Sparkles,
+  Coins,
 } from "lucide-react";
 import {
   PageHeader,
@@ -31,17 +33,22 @@ import { useHydrated } from "@/components/shop/use-hydrated";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/hooks/use-auth";
 import { ORDER_STATUS, CHANNEL_LABELS } from "@/lib/constants";
-import { formatTHB, formatDate } from "@/lib/utils";
+import { pointsBahtValue } from "@/lib/selectors";
+import { formatTHB, formatNumber, formatDate } from "@/lib/utils";
 
 export default function AccountPage() {
   const hydrated = useHydrated();
   const orders = useStore((s) => s.orders);
   const tiers = useStore((s) => s.tiers);
+  const settings = useStore((s) => s.settings);
   const { user, customer } = useAuth();
 
   const tierName = customer
     ? tiers.find((t) => t.id === customer.tierId)?.name ?? "ลูกค้าทั่วไป"
     : null;
+
+  const points = customer?.points ?? 0;
+  const earnRate = settings.earnRate ?? 20;
 
   const myOrders = useMemo(() => {
     if (!customer) return [];
@@ -57,11 +64,11 @@ export default function AccountPage() {
     <div>
       <PageHeader
         title="บัญชีของฉัน"
-        description="ข้อมูลส่วนตัวและประวัติการสั่งซื้อ"
+        description="ข้อมูลสมาชิก คะแนนสะสม และประวัติการสั่งซื้อ"
       />
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-        <div className="lg:sticky lg:top-24 lg:h-fit">
+        <div className="flex flex-col gap-6 lg:sticky lg:top-24 lg:h-fit">
           <Card strong>
             <CardContent className="flex flex-col items-center gap-4 p-6 text-center">
               <Avatar
@@ -102,11 +109,46 @@ export default function AccountPage() {
                 <p className="flex items-start gap-2 rounded-xl bg-sky-500/10 p-3 text-left text-xs leading-relaxed text-sky-700 dark:text-sky-300">
                   <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   คุณกำลังเข้าชมในนามทีมงาน บัญชีนี้ยังไม่ได้ผูกกับโปรไฟล์ลูกค้า
-                  จึงยังไม่มีประวัติการสั่งซื้อ
+                  จึงยังไม่มีคะแนนสะสมหรือประวัติการสั่งซื้อ
                 </p>
               )}
             </CardContent>
           </Card>
+
+          {/* Prominent loyalty points balance — members only. */}
+          {customer && (
+            <Card
+              strong
+              className="overflow-hidden border-0 bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg"
+            >
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-medium text-white/90">
+                    <Sparkles className="h-4 w-4" />
+                    คะแนนสะสม
+                  </div>
+                  <Badge className="bg-white/20 text-white">{tierName}</Badge>
+                </div>
+                <p className="mt-3 font-mono text-5xl font-bold leading-none">
+                  {formatNumber(points)}
+                </p>
+                <p className="mt-2 text-sm text-white/80">คะแนน</p>
+
+                <div className="mt-5 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2.5 text-sm">
+                  <Coins className="h-4 w-4 shrink-0" />
+                  <span>
+                    มีมูลค่าเป็นส่วนลด{" "}
+                    <span className="font-mono font-semibold">
+                      {formatTHB(pointsBahtValue(points, settings))}
+                    </span>
+                  </span>
+                </div>
+                <p className="mt-3 text-center text-xs text-white/70">
+                  รับ 1 คะแนน ทุกการใช้จ่าย {formatTHB(earnRate)}
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <Card strong>
@@ -131,13 +173,13 @@ export default function AccountPage() {
               <EmptyState
                 icon={UserCircle}
                 title="ไม่มีโปรไฟล์ลูกค้า"
-                description="เข้าสู่ระบบด้วยบัญชีลูกค้าเพื่อดูประวัติการสั่งซื้อ"
+                description="เข้าสู่ระบบด้วยบัญชีลูกค้าเพื่อดูคะแนนและประวัติการสั่งซื้อ"
               />
             ) : myOrders.length === 0 ? (
               <EmptyState
                 icon={ShoppingBag}
                 title="ยังไม่มีคำสั่งซื้อ"
-                description="เริ่มเลือกซื้อสินค้าชิ้นแรกของคุณได้เลย"
+                description="เริ่มสั่งเครื่องดื่มแก้วแรกเพื่อสะสมคะแนนได้เลย"
                 action={
                   <Link href="/shop">
                     <Button variant="primary" size="sm">
@@ -157,6 +199,7 @@ export default function AccountPage() {
                         <TH>วันที่</TH>
                         <TH>ช่องทาง</TH>
                         <TH className="text-right">ยอดรวม</TH>
+                        <TH className="text-right">คะแนนที่ได้</TH>
                         <TH>สถานะ</TH>
                         <TH className="text-right">รายละเอียด</TH>
                       </TR>
@@ -164,6 +207,7 @@ export default function AccountPage() {
                     <TBody>
                       {myOrders.map((o) => {
                         const status = ORDER_STATUS[o.status];
+                        const earned = o.pointsEarned ?? 0;
                         return (
                           <TR
                             key={o.id}
@@ -185,6 +229,15 @@ export default function AccountPage() {
                             </TD>
                             <TD className="text-right font-mono font-medium">
                               {formatTHB(o.total)}
+                            </TD>
+                            <TD className="text-right">
+                              {earned > 0 ? (
+                                <span className="inline-flex items-center gap-1 font-mono text-amber-600 dark:text-amber-400">
+                                  <Sparkles className="h-3.5 w-3.5" />+{formatNumber(earned)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-300 dark:text-slate-600">-</span>
+                              )}
                             </TD>
                             <TD>
                               <Badge tone={status.tone}>{status.label}</Badge>
@@ -209,6 +262,7 @@ export default function AccountPage() {
                 <div className="flex flex-col gap-3 sm:hidden">
                   {myOrders.map((o) => {
                     const status = ORDER_STATUS[o.status];
+                    const earned = o.pointsEarned ?? 0;
                     return (
                       <Link
                         key={o.id}
@@ -222,8 +276,13 @@ export default function AccountPage() {
                           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                             {formatDate(o.createdAt)} · {CHANNEL_LABELS[o.channel]}
                           </p>
-                          <div className="mt-2">
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
                             <Badge tone={status.tone}>{status.label}</Badge>
+                            {earned > 0 && (
+                              <span className="inline-flex items-center gap-1 font-mono text-xs text-amber-600 dark:text-amber-400">
+                                <Sparkles className="h-3 w-3" />+{formatNumber(earned)}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="text-right">

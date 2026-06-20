@@ -15,6 +15,7 @@ import type {
   FinanceSummary,
   ProductSalesRow,
   ExpenseType,
+  Ingredient,
 } from "./types";
 
 export type RangePreset = "today" | "7d" | "30d" | "month" | "all";
@@ -228,4 +229,53 @@ export function lowStockProducts(products: Product[]): Product[] {
   return products
     .filter((p) => p.active && p.stock <= p.lowStockThreshold)
     .sort((a, b) => a.stock - b.stock);
+}
+
+// ----- Coffee pivot: ingredients + loyalty helpers -----
+
+/** Whole days from `now` until the ISO date. Negative = already expired. */
+export function daysToExpiry(iso: string, now: Date = new Date()): number {
+  const expiry = new Date(iso).getTime();
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  return Math.ceil((expiry - today.getTime()) / 86400000);
+}
+
+/**
+ * Ingredients expiring within `withinDays` (inclusive), including already-expired
+ * ones, sorted ascending by expiry date.
+ */
+export function expiringIngredients(
+  ingredients: Ingredient[],
+  withinDays = 7,
+  now: Date = new Date(),
+): Ingredient[] {
+  const limit = new Date(now);
+  limit.setHours(0, 0, 0, 0);
+  limit.setDate(limit.getDate() + withinDays);
+  const limitMs = limit.getTime();
+  return ingredients
+    .filter((ing) => new Date(ing.expiryDate).getTime() <= limitMs)
+    .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+}
+
+/** Menu items whose recipe consumes the given ingredient. */
+export function menuItemsUsingIngredient(
+  products: Product[],
+  ingredientId: string,
+): Product[] {
+  return products.filter((p) => p.recipe?.some((r) => r.ingredientId === ingredientId));
+}
+
+/** Points earned for an order total = floor(total / earnRate). */
+export function pointsEarnedFor(total: number, settings: Settings): number {
+  const rate = settings.earnRate ?? 20;
+  if (rate <= 0) return 0;
+  return Math.floor(total / rate);
+}
+
+/** Baht value of a points balance = points * redeemValue. */
+export function pointsBahtValue(points: number, settings: Settings): number {
+  const value = settings.redeemValue ?? 1;
+  return Math.round(points * value);
 }

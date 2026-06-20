@@ -1,9 +1,11 @@
 import type { Role } from "./types";
 import {
   LayoutDashboard,
-  Package,
+  Coffee,
   Boxes,
   Truck,
+  QrCode,
+  Sparkles,
   Wallet,
   Receipt,
   BarChart3,
@@ -31,11 +33,13 @@ const ALL: Role[] = ["customer", "staff", "manager", "owner"];
 
 export const ADMIN_NAV: NavItem[] = [
   { href: "/admin", label: "ภาพรวม", icon: LayoutDashboard, roles: MANAGER_UP },
-  { href: "/admin/products", label: "สินค้า", icon: Package, roles: MANAGER_UP },
-  { href: "/admin/stock", label: "สต๊อก", icon: Boxes, roles: MANAGER_UP },
-  { href: "/admin/purchases", label: "ซื้อสินค้าเข้า", icon: Truck, roles: MANAGER_UP },
-  { href: "/admin/reports", label: "รายงานการขาย", icon: BarChart3, roles: MANAGER_UP },
+  { href: "/admin/products", label: "เมนู", icon: Coffee, roles: MANAGER_UP },
+  { href: "/admin/stock", label: "วัตถุดิบ", icon: Boxes, roles: MANAGER_UP },
+  { href: "/admin/purchases", label: "รับวัตถุดิบเข้า", icon: Truck, roles: MANAGER_UP },
+  { href: "/admin/tables", label: "โต๊ะ & QR", icon: QrCode, roles: MANAGER_UP },
+  { href: "/admin/loyalty", label: "สมาชิก & คะแนน", icon: Sparkles, roles: MANAGER_UP },
   { href: "/admin/customers", label: "ลูกค้า", icon: Users, roles: MANAGER_UP },
+  { href: "/admin/reports", label: "รายงานการขาย", icon: BarChart3, roles: MANAGER_UP },
   { href: "/admin/discounts", label: "ส่วนลด", icon: Ticket, roles: MANAGER_UP },
   { href: "/admin/finance", label: "บัญชี / การเงิน", icon: Wallet, roles: OWNER_ONLY },
   { href: "/admin/expenses", label: "รายจ่าย", icon: Receipt, roles: OWNER_ONLY },
@@ -44,9 +48,9 @@ export const ADMIN_NAV: NavItem[] = [
 ];
 
 export const POS_NAV: NavItem[] = [
-  { href: "/pos", label: "ขายหน้าร้าน", icon: ShoppingBag, roles: STAFF_UP },
+  { href: "/pos", label: "ขายเคาน์เตอร์", icon: ShoppingBag, roles: STAFF_UP },
   { href: "/pos/orders", label: "ออเดอร์", icon: ClipboardList, roles: STAFF_UP },
-  { href: "/pos/pack", label: "คิวแพ็ก", icon: PackageCheck, roles: STAFF_UP },
+  { href: "/pos/pack", label: "คิวชง / เสิร์ฟ", icon: PackageCheck, roles: STAFF_UP },
 ];
 
 export const SHOP_NAV: NavItem[] = [

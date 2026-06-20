@@ -12,3 +12,5 @@ export * from "./page-header";
 export * from "./empty-state";
 export * from "./avatar";
 export * from "./toaster";
+export * from "./numpad";
+export * from "./qr-code";
