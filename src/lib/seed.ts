@@ -71,6 +71,7 @@ export const CATEGORIES: Category[] = [
   { id: "cat_smoothie", name: "สมูทตี้ & โซดา" },
   { id: "cat_bakery", name: "เบเกอรี่" },
   { id: "cat_dessert", name: "ขนมหวาน" },
+  { id: "cat_tokyo", name: "ขนมโตเกียว" },
 ];
 
 // ----- Reusable option groups -----
@@ -114,6 +115,7 @@ const MENU_IMG_KW: Record<string, string> = {
   cat_smoothie: "smoothie",
   cat_bakery: "croissant,bakery",
   cat_dessert: "cake,dessert",
+  cat_tokyo: "pancake,snack",
 };
 
 /** Coffee-themed, deterministic menu image (with a branded fallback in the UI). */
@@ -166,6 +168,13 @@ const I = {
   tealeaf: "ing_tealeaf",
   pearl: "ing_pearl",
   syrup: "ing_syrup",
+  flour: "ing_flour",
+  egg: "ing_egg",
+  custard: "ing_custard",
+  sangkaya: "ing_sangkaya",
+  taro: "ing_taro",
+  sausage: "ing_sausage",
+  porkfloss: "ing_porkfloss",
 };
 
 export const PRODUCTS: Product[] = [
@@ -249,6 +258,37 @@ export const PRODUCTS: Product[] = [
   makeProduct("p20", "DST-BRW", "บราวนี่", "cat_dessert", 22, 55, 22, 5, undefined, [
     { ingredientId: I.cocoa, qty: 12 },
   ]),
+  // ขนมโตเกียว (ทำสดจากแป้ง — สต๊อกขึ้นกับวัตถุดิบ)
+  makeProduct("p21", "TKY-CRM", "โตเกียวไส้ครีม", "cat_tokyo", 6, 15, 999, 0, undefined, [
+    { ingredientId: I.flour, qty: 25 },
+    { ingredientId: I.egg, qty: 1 },
+    { ingredientId: I.custard, qty: 20 },
+  ]),
+  makeProduct("p22", "TKY-SKY", "โตเกียวไส้สังขยา", "cat_tokyo", 6, 15, 999, 0, undefined, [
+    { ingredientId: I.flour, qty: 25 },
+    { ingredientId: I.egg, qty: 1 },
+    { ingredientId: I.sangkaya, qty: 20 },
+  ]),
+  makeProduct("p23", "TKY-TAR", "โตเกียวไส้เผือก", "cat_tokyo", 7, 17, 999, 0, undefined, [
+    { ingredientId: I.flour, qty: 25 },
+    { ingredientId: I.egg, qty: 1 },
+    { ingredientId: I.taro, qty: 22 },
+  ]),
+  makeProduct("p24", "TKY-SAU", "โตเกียวไส้กรอก", "cat_tokyo", 9, 20, 999, 0, undefined, [
+    { ingredientId: I.flour, qty: 25 },
+    { ingredientId: I.egg, qty: 1 },
+    { ingredientId: I.sausage, qty: 2 },
+  ]),
+  makeProduct("p25", "TKY-PRK", "โตเกียวไส้หมูหยอง", "cat_tokyo", 9, 20, 999, 0, undefined, [
+    { ingredientId: I.flour, qty: 25 },
+    { ingredientId: I.egg, qty: 1 },
+    { ingredientId: I.porkfloss, qty: 12 },
+  ]),
+  makeProduct("p26", "TKY-CHO", "โตเกียวไส้ช็อกโกแลต", "cat_tokyo", 7, 17, 999, 0, undefined, [
+    { ingredientId: I.flour, qty: 25 },
+    { ingredientId: I.egg, qty: 1 },
+    { ingredientId: I.chocsauce, qty: 18 },
+  ]),
 ];
 
 export const INGREDIENTS: Ingredient[] = [
@@ -264,6 +304,13 @@ export const INGREDIENTS: Ingredient[] = [
   { id: I.tealeaf, name: "ใบชา", unit: "กรัม", stock: 2500, lowThreshold: 500, expiryDate: daysAhead(180), cost: 0.3, createdAt: daysAgo(40) },
   { id: I.pearl, name: "ไข่มุก", unit: "กรัม", stock: 4000, lowThreshold: 1000, expiryDate: daysAhead(30), cost: 0.1, createdAt: daysAgo(5) },
   { id: I.syrup, name: "น้ำเชื่อม", unit: "มล.", stock: 5000, lowThreshold: 1000, expiryDate: daysAhead(90), cost: 0.03, createdAt: daysAgo(12) },
+  { id: I.flour, name: "แป้งโตเกียว", unit: "กรัม", stock: 6000, lowThreshold: 1500, expiryDate: daysAhead(75), cost: 0.03, createdAt: daysAgo(10) },
+  { id: I.egg, name: "ไข่ไก่", unit: "ฟอง", stock: 600, lowThreshold: 120, expiryDate: daysAhead(18), cost: 4, createdAt: daysAgo(4) },
+  { id: I.custard, name: "ไส้ครีมคัสตาร์ด", unit: "กรัม", stock: 2500, lowThreshold: 600, expiryDate: daysAhead(4), cost: 0.08, createdAt: daysAgo(3) },
+  { id: I.sangkaya, name: "สังขยา", unit: "กรัม", stock: 2000, lowThreshold: 500, expiryDate: daysAhead(3), cost: 0.07, createdAt: daysAgo(2) },
+  { id: I.taro, name: "เผือกกวน", unit: "กรัม", stock: 1800, lowThreshold: 500, expiryDate: daysAhead(20), cost: 0.09, createdAt: daysAgo(6) },
+  { id: I.sausage, name: "ไส้กรอก", unit: "ชิ้น", stock: 400, lowThreshold: 100, expiryDate: daysAhead(6), cost: 2.5, createdAt: daysAgo(3) },
+  { id: I.porkfloss, name: "หมูหยอง", unit: "กรัม", stock: 900, lowThreshold: 250, expiryDate: daysAhead(45), cost: 0.4, createdAt: daysAgo(8) },
 ];
 
 export const TABLES: Table[] = [
@@ -589,6 +636,7 @@ function generatePurchases(ingredients: Ingredient[]): Purchase[] {
     mk("pur_1", "PO-20260530-001", "โรงคั่วกาแฟ บีนเฮาส์", [[I.beans, 5000], [I.greentea, 500], [I.cocoa, 500]], 21),
     mk("pur_2", "PO-20260614-002", "นมสด ฟาร์มโคนม", [[I.milk, 12000], [I.creamer, 3000], [I.whip, 2000]], 6),
     mk("pur_3", "PO-20260618-003", "ซัพพลายเออร์ไซรัป", [[I.caramel, 1000], [I.vanilla, 1000], [I.syrup, 5000]], 2),
+    mk("pur_4", "PO-20260619-004", "ขนมโตเกียว ซัพพลาย", [[I.flour, 6000], [I.custard, 2500], [I.sangkaya, 2000], [I.sausage, 400]], 1),
   ];
 }
 
