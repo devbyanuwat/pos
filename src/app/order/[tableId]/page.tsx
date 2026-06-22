@@ -37,13 +37,12 @@ import {
 } from "@/components/ui";
 import { useStore } from "@/lib/store";
 import { getPriceForCustomer } from "@/lib/selectors";
+import { promptPayPayload } from "@/lib/promptpay";
 import { ORDER_STATUS, PAYMENT_LABELS } from "@/lib/constants";
 import { cn, formatTHB } from "@/lib/utils";
 import type { Order, Product, Customer, Settings } from "@/lib/types";
 import type { CreateOrderInput } from "@/lib/store";
 import { OptionPicker, type SelectedOption } from "@/components/order/option-picker";
-
-const PROMPTPAY_QR = "promptpay://brew-and-bean/demo";
 
 /** A line in the local (not yet placed) cart. */
 interface CartLine {
@@ -515,10 +514,18 @@ function CheckoutDialog({
           {/* Slip panel (when paying by transfer) */}
           {pay === "slip" && (
             <div className="glass-subtle flex flex-col items-center gap-3 rounded-2xl p-4">
-              <QrCodeView value={PROMPTPAY_QR} size={148} />
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                สแกนเพื่อโอนผ่าน PromptPay
-              </p>
+              {promptPayPayload(settings.promptpayId, subtotal) ? (
+                <>
+                  <QrCodeView value={promptPayPayload(settings.promptpayId, subtotal)!} size={148} />
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    สแกนเพื่อโอนผ่าน PromptPay · {formatTHB(subtotal)}
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  ร้านยังไม่ได้ตั้งค่าพร้อมเพย์ กรุณาแจ้งพนักงาน
+                </p>
+              )}
 
               <input
                 ref={fileRef}

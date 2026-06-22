@@ -287,6 +287,7 @@ export default function CounterPosPage() {
         commission={salesChannel ? deliveryCommission : undefined}
         net={salesChannel ? deliveryNet : undefined}
         platformName={salesChannel?.name}
+        promptpayId={settings.promptpayId}
       />
 
       <CounterReceiptDialog

@@ -496,6 +496,7 @@ export const SETTINGS: Settings = {
   startingCash: 30000,
   currency: "THB",
   lowStockThreshold: 5,
+  promptpayId: "0812345678",
   earnRate: 20,
   redeemValue: 1,
   printerHost: "192.168.1.118",

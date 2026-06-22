@@ -31,6 +31,7 @@ const CHANNELS: OrderChannel[] = ["online", "pos", "qr"];
 export default function OrdersPage() {
   const orders = useStore((s) => s.orders);
   const tables = useStore((s) => s.tables);
+  const settings = useStore((s) => s.settings);
   const verifySlip = useStore((s) => s.verifySlip);
   const updateOrderStatus = useStore((s) => s.updateOrderStatus);
   const cancelOrder = useStore((s) => s.cancelOrder);
@@ -154,6 +155,8 @@ export default function OrdersPage() {
       <OrderDetailSheet
         order={openOrder}
         tableName={openOrder?.tableId ? tableNames[openOrder.tableId] : undefined}
+        shopName={settings.shopName}
+        promptpayId={settings.promptpayId}
         onClose={() => setOpenId(null)}
         onVerifySlip={handleVerify}
         onTakeCounterPayment={handleCounterPayment}

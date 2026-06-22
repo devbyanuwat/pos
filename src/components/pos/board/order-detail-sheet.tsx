@@ -11,8 +11,9 @@ import {
   ImageOff,
   Sparkles,
   Wallet,
+  QrCode,
 } from "lucide-react";
-import { Dialog, Button, Badge } from "@/components/ui";
+import { Dialog, Button, Badge, QrCodeView } from "@/components/ui";
 import { OrderLineItems } from "./order-line-items";
 import {
   ORDER_STATUS,
@@ -20,6 +21,7 @@ import {
   CHANNEL_LABELS,
   PAYMENT_LABELS,
 } from "@/lib/constants";
+import { promptPayPayload } from "@/lib/promptpay";
 import { formatTHB, formatDateTime } from "@/lib/utils";
 import type { Order, OrderStatus } from "@/lib/types";
 
@@ -31,6 +33,8 @@ import type { Order, OrderStatus } from "@/lib/types";
 export function OrderDetailSheet({
   order,
   tableName,
+  shopName,
+  promptpayId,
   onClose,
   onVerifySlip,
   onTakeCounterPayment,
@@ -39,6 +43,10 @@ export function OrderDetailSheet({
 }: {
   order: Order | null;
   tableName?: string;
+  /** Shop display name, shown above the payment QR. */
+  shopName?: string;
+  /** PromptPay proxy id used to build the payment QR. */
+  promptpayId?: string;
   onClose: () => void;
   onVerifySlip: (id: string) => void;
   onTakeCounterPayment: (id: string) => void;
@@ -46,6 +54,7 @@ export function OrderDetailSheet({
   onCancel: (id: string) => void;
 }) {
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [showQr, setShowQr] = useState(false);
 
   if (!order) return null;
 
@@ -59,9 +68,13 @@ export function OrderDetailSheet({
   // Pay-at-counter QR order still owing money.
   const canTakeCounter =
     order.paymentMethod === "counter" && order.status === "pending_payment";
+  // Any unpaid bill can be settled by showing a PromptPay QR at the counter.
+  const owesPayment = order.status === "pending_payment";
+  const payQr = owesPayment ? promptPayPayload(promptpayId, order.total) : null;
 
   const close = () => {
     setConfirmCancel(false);
+    setShowQr(false);
     onClose();
   };
 
@@ -103,6 +116,13 @@ export function OrderDetailSheet({
                 ยกเลิกบิล
               </Button>
             ))}
+
+          {owesPayment && (
+            <Button variant="outline" onClick={() => setShowQr((v) => !v)}>
+              <QrCode className="h-4 w-4" />
+              {showQr ? "ซ่อน QR" : "แสดง QR ชำระเงิน"}
+            </Button>
+          )}
 
           {canVerifySlip && (
             <Button variant="success" onClick={() => onVerifySlip(order.id)}>
@@ -185,6 +205,28 @@ export function OrderDetailSheet({
             </p>
           )}
         </div>
+
+        {/* Payment QR — barista presents it when the customer pays at the counter */}
+        {showQr && owesPayment && (
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-slate-200/60 bg-white/50 p-4 dark:border-white/10 dark:bg-white/5">
+            {payQr ? (
+              <>
+                <QrCodeView value={payQr} size={196} />
+                <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+                  {shopName ? `${shopName} · ` : ""}ให้ลูกค้าสแกนเพื่อชำระ{" "}
+                  <span className="font-mono font-semibold text-slate-900 dark:text-slate-50">
+                    {formatTHB(order.total)}
+                  </span>
+                </p>
+              </>
+            ) : (
+              <p className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                <QrCode className="h-4 w-4" />
+                ยังไม่ได้ตั้งค่าพร้อมเพย์ — ไปที่ ตั้งค่า เพื่อเพิ่มเบอร์/เลขพร้อมเพย์
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Payment slip — shown when a slip exists */}
         {order.paymentMethod === "slip" && (

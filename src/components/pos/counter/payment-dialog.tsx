@@ -5,6 +5,7 @@ import { Banknote, QrCode, ReceiptText, ArrowLeft, Check } from "lucide-react";
 import { Dialog, Button } from "@/components/ui";
 import { Numpad, NumpadDisplay } from "@/components/ui";
 import { QrCodeView } from "@/components/ui";
+import { promptPayPayload } from "@/lib/promptpay";
 import { cn, formatTHB, formatNumber } from "@/lib/utils";
 
 export type PaymentMethod = "cash" | "slip" | "counter";
@@ -28,6 +29,7 @@ export function PaymentDialog({
   commission,
   net,
   platformName,
+  promptpayId,
 }: {
   open: boolean;
   total: number;
@@ -40,6 +42,8 @@ export function PaymentDialog({
   net?: number;
   /** Delivery platform name shown in the header (delivery mode only). */
   platformName?: string;
+  /** PromptPay proxy id used to build the scan-to-pay QR. */
+  promptpayId?: string;
 }) {
   const [mode, setMode] = useState<Mode>("choose");
   const [cash, setCash] = useState("");
@@ -58,6 +62,7 @@ export function PaymentDialog({
   const enoughCash = validCash >= total;
 
   const isDelivery = commission != null && net != null;
+  const payQr = promptPayPayload(promptpayId, total);
 
   const title =
     mode === "cash"
@@ -183,13 +188,21 @@ export function PaymentDialog({
       {mode === "slip" && (
         <div className="space-y-4">
           <div className="flex flex-col items-center gap-3">
-            <QrCodeView value={`promptpay://${shopName}/${total}`} size={196} />
-            <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-              ให้ลูกค้าสแกนเพื่อชำระ{" "}
-              <span className="font-mono font-semibold text-slate-900 dark:text-slate-50">
-                {formatTHB(total)}
-              </span>
-            </p>
+            {payQr ? (
+              <>
+                <QrCodeView value={payQr} size={196} />
+                <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+                  {shopName} · ให้ลูกค้าสแกนเพื่อชำระ{" "}
+                  <span className="font-mono font-semibold text-slate-900 dark:text-slate-50">
+                    {formatTHB(total)}
+                  </span>
+                </p>
+              </>
+            ) : (
+              <p className="text-center text-sm text-amber-600 dark:text-amber-400">
+                ยังไม่ได้ตั้งค่าพร้อมเพย์ — ไปที่ ตั้งค่า เพื่อเพิ่มเบอร์/เลขพร้อมเพย์
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Button variant="ghost" size="lg" onClick={() => setMode("choose")}>

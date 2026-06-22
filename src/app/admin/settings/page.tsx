@@ -31,6 +31,7 @@ export default function SettingsPage() {
     shopName: settings.shopName,
     startingCash: String(settings.startingCash),
     lowStockThreshold: String(settings.lowStockThreshold),
+    promptpayId: settings.promptpayId ?? "",
   });
 
   const [printer, setPrinter] = useState({
@@ -48,6 +49,7 @@ export default function SettingsPage() {
       shopName: settings.shopName,
       startingCash: String(settings.startingCash),
       lowStockThreshold: String(settings.lowStockThreshold),
+      promptpayId: settings.promptpayId ?? "",
     });
     setPrinter({
       host: settings.printerHost ?? PRINTER_DEFAULTS.host,
@@ -77,6 +79,7 @@ export default function SettingsPage() {
       shopName: form.shopName.trim(),
       startingCash: Math.max(0, Math.round(Number(form.startingCash) || 0)),
       lowStockThreshold: Math.max(0, Math.round(Number(form.lowStockThreshold) || 0)),
+      promptpayId: form.promptpayId.trim() || undefined,
     });
     toast.success("บันทึกการตั้งค่าแล้ว");
   }
@@ -152,6 +155,20 @@ export default function SettingsPage() {
                   onChange={(e) => setForm((f) => ({ ...f, shopName: e.target.value }))}
                   placeholder="ชื่อร้านของคุณ"
                 />
+              </div>
+              <div>
+                <Label htmlFor="st-promptpay">พร้อมเพย์ (สำหรับ QR รับเงิน)</Label>
+                <Input
+                  id="st-promptpay"
+                  value={form.promptpayId}
+                  onChange={(e) => setForm((f) => ({ ...f, promptpayId: e.target.value }))}
+                  placeholder="เบอร์มือถือ / เลขบัตรประชาชน / เลข e-Wallet"
+                  className="font-mono"
+                  inputMode="numeric"
+                />
+                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  ใช้สร้าง QR PromptPay ให้ลูกค้าสแกนจ่ายที่เคาน์เตอร์และตอนสั่งผ่าน QR โต๊ะ
+                </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>

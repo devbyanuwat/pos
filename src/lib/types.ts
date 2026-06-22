@@ -247,6 +247,8 @@ export interface Settings {
   startingCash: number;
   currency: string;
   lowStockThreshold: number;
+  /** PromptPay proxy id (mobile / national id / e-wallet) for payment QR codes. */
+  promptpayId?: string;
   /** Baht spent to earn 1 loyalty point, e.g. 20. Coffee pivot. */
   earnRate?: number;
   /** Baht value of 1 loyalty point when redeemed, e.g. 1. Coffee pivot. */
