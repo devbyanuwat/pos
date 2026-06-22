@@ -6,6 +6,7 @@
 
 import type {
   PricingTier,
+  SalesChannel,
   Category,
   Product,
   Customer,
@@ -23,7 +24,12 @@ import type {
   MenuOption,
   RecipeLine,
 } from "./types";
-import { getPriceForCustomer, bestDiscount } from "./selectors";
+import {
+  getPriceForCustomer,
+  getPriceForChannel,
+  commissionFor,
+  bestDiscount,
+} from "./selectors";
 
 const ANCHOR = new Date("2026-06-20T18:00:00");
 
@@ -63,6 +69,30 @@ export const TIERS: PricingTier[] = [
   { id: "wholesale", name: "ขายส่ง / ออฟฟิศ", multiplier: 0.85, color: "sky" },
   { id: "vip", name: "สมาชิก VIP", multiplier: 0.9, color: "amber" },
 ];
+
+/** Delivery platforms the shop sells through. GP = the commission each deducts. */
+export const SALES_CHANNELS: SalesChannel[] = [
+  { id: "grab", name: "GrabFood", commission: 30, color: "emerald", active: true, createdAt: daysAgo(60) },
+  { id: "lineman", name: "LINE MAN", commission: 30, color: "teal", active: true, createdAt: daysAgo(60) },
+  { id: "foodpanda", name: "foodpanda", commission: 32, color: "pink", active: true, createdAt: daysAgo(60) },
+  { id: "shopeefood", name: "ShopeeFood", commission: 30, color: "amber", active: true, createdAt: daysAgo(45) },
+];
+
+/**
+ * Attach an absolute per-channel price to each product: marked up so the shop nets
+ * roughly the same as in-store after the platform's GP, rounded to the nearest 5 baht.
+ */
+function withChannelPrices(products: Product[], channels: SalesChannel[]): Product[] {
+  return products.map((p) => {
+    const channelPrices: Record<string, number> = {};
+    for (const ch of channels) {
+      if (!ch.active) continue;
+      const raw = p.basePrice / (1 - ch.commission / 100);
+      channelPrices[ch.id] = Math.round(raw / 5) * 5;
+    }
+    return { ...p, channelPrices };
+  });
+}
 
 export const CATEGORIES: Category[] = [
   { id: "cat_hot", name: "กาแฟร้อน" },
@@ -496,11 +526,13 @@ function generateOrders(
   discounts: Discount[],
   settings: Settings,
   tables: Table[],
+  channels: SalesChannel[],
 ): Order[] {
   const rand = mulberry32(987654);
   const orders: Order[] = [];
   let seq = 0;
   const earnRate = settings.earnRate ?? 20;
+  const activeChannels = channels.filter((c) => c.active);
 
   for (let d = 29; d >= 0; d--) {
     const day = new Date(ANCHOR);
@@ -509,12 +541,18 @@ function generateOrders(
 
     for (let k = 0; k < count; k++) {
       seq++;
-      // channel mix ~ qr 40 / pos 40 / online 20
+      // channel mix ~ qr 35 / pos 30 / online 15 / delivery 20
       const r = rand();
-      const channel: OrderChannel = r < 0.4 ? "qr" : r < 0.8 ? "pos" : "online";
+      const channel: OrderChannel =
+        r < 0.35 ? "qr" : r < 0.65 ? "pos" : r < 0.8 ? "online" : "delivery";
+      const isDelivery = channel === "delivery" && activeChannels.length > 0;
+      // Delivery orders come from a platform with no member; pick the platform here.
+      const salesChannel = isDelivery
+        ? activeChannels[Math.floor(rand() * activeChannels.length)]
+        : undefined;
 
-      // walk-in guests mostly on pos/qr
-      const guest = channel !== "online" && rand() < 0.4;
+      // walk-in guests mostly on pos/qr; delivery never carries a member
+      const guest = isDelivery || (channel !== "online" && rand() < 0.4);
       const customer = guest ? null : customers[Math.floor(rand() * customers.length)];
 
       const itemCount = 1 + Math.floor(rand() * 3); // 1-3 lines
@@ -532,7 +570,10 @@ function generateOrders(
           name: p.name,
           sku: p.sku,
           qty,
-          unitPrice: getPriceForCustomer(p, customer, tiers) + delta,
+          unitPrice:
+            (salesChannel
+              ? getPriceForChannel(p, salesChannel.id)
+              : getPriceForCustomer(p, customer, tiers)) + delta,
           cost: p.cost,
         };
         if (labels.length) item.options = labels;
@@ -541,9 +582,11 @@ function generateOrders(
       if (items.length === 0) continue;
 
       const subtotal = items.reduce((a, i) => a + i.unitPrice * i.qty, 0);
+      // Platforms run their own promos; in-house discounts don't apply to delivery.
       const disc =
-        rand() < 0.3 ? bestDiscount(subtotal, customer, discounts) : { amount: 0 };
+        !isDelivery && rand() < 0.3 ? bestDiscount(subtotal, customer, discounts) : { amount: 0 };
       const total = subtotal - disc.amount;
+      const commission = commissionFor(total, salesChannel);
 
       let status: OrderStatus;
       if (d > 2) status = "completed";
@@ -561,7 +604,13 @@ function generateOrders(
       const isPaid = ["paid", "packing", "completed"].includes(status);
 
       const paymentMethod: "cash" | "slip" | "counter" =
-        channel === "online" ? "slip" : channel === "qr" ? (rand() < 0.5 ? "slip" : "counter") : "cash";
+        isDelivery || channel === "online"
+          ? "slip"
+          : channel === "qr"
+            ? rand() < 0.5
+              ? "slip"
+              : "counter"
+            : "cash";
 
       const tableId =
         channel === "qr" ? tables[Math.floor(rand() * tables.length)].id : undefined;
@@ -573,8 +622,10 @@ function generateOrders(
         id: `ord_${seq}`,
         code: `ORD-${ymdCompact(created)}-${String(seq).padStart(3, "0")}`,
         customerId: customer ? customer.id : null,
-        customerName: customer ? customer.name : "ลูกค้าหน้าร้าน",
+        customerName: customer ? customer.name : isDelivery ? "ลูกค้าเดลิเวอรี" : "ลูกค้าหน้าร้าน",
         channel,
+        salesChannelId: salesChannel?.id,
+        commission: commission > 0 ? commission : undefined,
         items,
         subtotal,
         discount: disc.amount,
@@ -646,17 +697,19 @@ function generatePurchases(ingredients: Ingredient[]): Purchase[] {
 }
 
 export function buildSeed() {
+  const products = withChannelPrices(PRODUCTS, SALES_CHANNELS);
   return {
     tiers: TIERS,
+    salesChannels: SALES_CHANNELS,
     categories: CATEGORIES,
-    products: PRODUCTS,
+    products,
     customers: CUSTOMERS,
     users: USERS,
     discounts: DISCOUNTS,
     settings: SETTINGS,
     ingredients: INGREDIENTS,
     tables: TABLES,
-    orders: generateOrders(PRODUCTS, CUSTOMERS, TIERS, DISCOUNTS, SETTINGS, TABLES),
+    orders: generateOrders(products, CUSTOMERS, TIERS, DISCOUNTS, SETTINGS, TABLES, SALES_CHANNELS),
     expenses: generateExpenses(),
     purchases: generatePurchases(INGREDIENTS),
   };

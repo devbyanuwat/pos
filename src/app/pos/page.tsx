@@ -6,7 +6,7 @@ import { PageHeader, EmptyState, toast } from "@/components/ui";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/hooks/use-auth";
 import { useHydrated } from "@/components/shop/use-hydrated";
-import { getPriceForCustomer, bestDiscount } from "@/lib/selectors";
+import { getPriceForCustomer, getPriceForChannel, bestDiscount, commissionFor } from "@/lib/selectors";
 import { genId } from "@/lib/utils";
 import { MenuGrid } from "@/components/pos/counter/menu-grid";
 import { OptionPicker } from "@/components/pos/counter/option-picker";
@@ -16,6 +16,7 @@ import { CounterReceiptDialog } from "@/components/pos/counter/receipt-dialog";
 import type { CounterSaleLine } from "@/components/pos/counter/types";
 import type { OrderItemOption } from "@/lib/store";
 import type { Product, Order } from "@/lib/types";
+import { ChannelSelector } from "@/components/pos/counter/channel-selector";
 
 export default function CounterPosPage() {
   // One atomic slice per useStore call (no re-render loops).
@@ -26,8 +27,15 @@ export default function CounterPosPage() {
   const discounts = useStore((s) => s.discounts);
   const settings = useStore((s) => s.settings);
   const createOrder = useStore((s) => s.createOrder);
+  const salesChannels = useStore((s) => s.salesChannels);
   const { user } = useAuth();
   const hydrated = useHydrated();
+
+  const activeChannels = salesChannels.filter((c) => c.active);
+
+  // Selected delivery platform. null = in-store counter.
+  const [channelId, setChannelId] = useState<string | null>(null);
+  const salesChannel = activeChannels.find((c) => c.id === channelId) ?? null;
 
   // The current sale lives in LOCAL state - this is NOT the persisted shop cart.
   const [lines, setLines] = useState<CounterSaleLine[]>([]);
@@ -41,8 +49,15 @@ export default function CounterPosPage() {
   const [receipt, setReceipt] = useState<Order | null>(null);
   const [receiptCash, setReceiptCash] = useState<number | null>(null);
 
-  const customer = customers.find((c) => c.id === selectedCustomerId) ?? null;
-  const priceFor = (p: Product) => getPriceForCustomer(p, customer, tiers);
+  // In delivery mode there is no member; force customer to null.
+  const customer = salesChannel
+    ? null
+    : customers.find((c) => c.id === selectedCustomerId) ?? null;
+
+  const priceFor = (p: Product) =>
+    salesChannel
+      ? getPriceForChannel(p, salesChannel.id)
+      : getPriceForCustomer(p, customer, tiers);
 
   /** Total units of a product already in the sale (across option variants). */
   function qtyInSale(productId: string): number {
@@ -114,6 +129,16 @@ export default function CounterPosPage() {
     setSelectedCustomerId(null);
     setDiscountValue(0);
     setRedeemPoints(0);
+    setChannelId(null);
+  }
+
+  /** Switch channel and wipe the current bill to avoid mixed-channel pricing. */
+  function handleChannelChange(id: string | null) {
+    setChannelId(id);
+    setLines([]);
+    setSelectedCustomerId(null);
+    setDiscountValue(0);
+    setRedeemPoints(0);
   }
 
   function handleConfirmPayment({
@@ -125,22 +150,34 @@ export default function CounterPosPage() {
   }) {
     if (lines.length === 0) return;
 
-    const order = createOrder({
-      customerId: selectedCustomerId,
-      // channel "pos" labels the order as "เคาน์เตอร์"; paymentMethod carries the
-      // cash/slip/counter intent. orderType is an OrderChannel and stays = channel.
-      channel: "pos",
-      items: lines.map((l) => ({
-        productId: l.productId,
-        qty: l.qty,
-        options: l.options,
-      })),
-      status: "paid",
-      paymentMethod: method,
-      discount: discountValue > 0 ? { amount: discountValue, label: "ส่วนลดหน้าร้าน" } : undefined,
-      pointsRedeemed: selectedCustomerId && redeemPoints > 0 ? redeemPoints : undefined,
-      createdBy: user?.id,
-    });
+    const orderItems = lines.map((l) => ({
+      productId: l.productId,
+      qty: l.qty,
+      options: l.options,
+    }));
+
+    const order = salesChannel
+      ? createOrder({
+          customerId: null,
+          channel: "delivery",
+          salesChannelId: salesChannel.id,
+          items: orderItems,
+          status: "paid",
+          paymentMethod: method,
+          createdBy: user?.id,
+        })
+      : createOrder({
+          customerId: selectedCustomerId,
+          // channel "pos" labels the order as "เคาน์เตอร์"; paymentMethod carries the
+          // cash/slip/counter intent. orderType is an OrderChannel and stays = channel.
+          channel: "pos",
+          items: orderItems,
+          status: "paid",
+          paymentMethod: method,
+          discount: discountValue > 0 ? { amount: discountValue, label: "ส่วนลดหน้าร้าน" } : undefined,
+          pointsRedeemed: selectedCustomerId && redeemPoints > 0 ? redeemPoints : undefined,
+          createdBy: user?.id,
+        });
 
     setPayOpen(false);
     setReceiptCash(cashReceived);
@@ -152,12 +189,25 @@ export default function CounterPosPage() {
   // Live total for the payment dialog. Mirrors createOrder + SalePanel math so
   // the amount due / change shown matches the order that gets created.
   const subtotal = lines.reduce((a, l) => a + l.unitPrice * l.qty, 0);
-  const autoDiscount = bestDiscount(subtotal, customer, discounts).amount;
-  const appliedDiscount = discountValue > 0 ? Math.min(discountValue, subtotal) : autoDiscount;
+
+  // Delivery mode: no member discounts or points — platform handles its own promos.
+  const autoDiscount = salesChannel ? 0 : bestDiscount(subtotal, customer, discounts).amount;
+  const appliedDiscount = salesChannel
+    ? 0
+    : discountValue > 0
+      ? Math.min(discountValue, subtotal)
+      : autoDiscount;
   const redeemValue = settings.redeemValue ?? 1;
-  const wantRedeem = customer ? Math.min(Math.max(0, redeemPoints), customer.points ?? 0) : 0;
+  const wantRedeem =
+    !salesChannel && customer
+      ? Math.min(Math.max(0, redeemPoints), customer.points ?? 0)
+      : 0;
   const redeemAmount = Math.min(wantRedeem * redeemValue, subtotal - appliedDiscount);
   const dueTotal = Math.max(0, subtotal - appliedDiscount - redeemAmount);
+
+  // Delivery GP figures shown in SalePanel and PaymentDialog.
+  const deliveryCommission = commissionFor(dueTotal, salesChannel);
+  const deliveryNet = dueTotal - deliveryCommission;
 
   return (
     <div>
@@ -165,6 +215,14 @@ export default function CounterPosPage() {
         title="ขายหน้าเคาน์เตอร์"
         description="แตะเมนูเพื่อเปิดบิล เลือกตัวเลือก แล้วเก็บเงินได้ทันที"
       />
+
+      {activeChannels.length > 0 && (
+        <ChannelSelector
+          activeChannels={activeChannels}
+          channelId={channelId}
+          onChange={handleChannelChange}
+        />
+      )}
 
       {hydrated && products.length === 0 ? (
         <EmptyState
@@ -202,6 +260,9 @@ export default function CounterPosPage() {
               redeemPoints={redeemPoints}
               onRedeemChange={setRedeemPoints}
               onCheckout={() => setPayOpen(true)}
+              salesChannel={salesChannel}
+              deliveryCommission={deliveryCommission}
+              deliveryNet={deliveryNet}
             />
           </div>
         </div>
@@ -223,6 +284,9 @@ export default function CounterPosPage() {
         shopName={settings.shopName}
         onConfirm={handleConfirmPayment}
         onClose={() => setPayOpen(false)}
+        commission={salesChannel ? deliveryCommission : undefined}
+        net={salesChannel ? deliveryNet : undefined}
+        platformName={salesChannel?.name}
       />
 
       <CounterReceiptDialog

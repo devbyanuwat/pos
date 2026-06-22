@@ -20,6 +20,7 @@ import {
   Coins,
   BarChart3,
   Crown,
+  Layers,
 } from "lucide-react";
 import {
   PageHeader,
@@ -37,6 +38,7 @@ import {
   TD,
   Badge,
   EmptyState,
+  Select,
 } from "@/components/ui";
 import { ProductImage } from "@/components/admin/catalog/product-image";
 import { useStore } from "@/lib/store";
@@ -44,6 +46,8 @@ import {
   productSalesReport,
   salesByDay,
   rangeForPreset,
+  channelBreakdown,
+  orderChannelKey,
   type RangePreset,
 } from "@/lib/selectors";
 import { formatTHB, formatNumber } from "@/lib/utils";
@@ -55,19 +59,97 @@ import {
   CurrencyTooltip,
   compactNumber,
 } from "@/components/admin/finance";
+import type { Tone } from "@/lib/constants";
+
+// Map accent token strings (from channelBreakdown row.color) to hex colors for chart cells.
+const TOKEN_HEX: Record<string, string> = {
+  emerald: "#10b981",
+  teal: "#14b8a6",
+  pink: "#ec4899",
+  amber: "#f59e0b",
+  sky: "#0ea5e9",
+  violet: "#8b5cf6",
+  slate: "#64748b",
+  rose: "#f43f5e",
+  indigo: "#4f46e5",
+  orange: "#f97316",
+  green: "#22c55e",
+  blue: "#3b82f6",
+  purple: "#a855f7",
+  red: "#ef4444",
+  yellow: "#eab308",
+};
+
+function tokenToHex(token: string): string {
+  return TOKEN_HEX[token] ?? CHART_COLORS.revenue;
+}
+
+// Map accent token to one of the six Badge tones.
+const TOKEN_TONE: Record<string, Tone> = {
+  emerald: "success",
+  teal: "success",
+  green: "success",
+  amber: "warning",
+  yellow: "warning",
+  orange: "warning",
+  sky: "info",
+  blue: "info",
+  indigo: "primary",
+  violet: "primary",
+  purple: "primary",
+  pink: "danger",
+  rose: "danger",
+  red: "danger",
+  slate: "neutral",
+};
+
+function tokenToTone(token: string): Tone {
+  return TOKEN_TONE[token] ?? "neutral";
+}
 
 export default function ReportsPage() {
   const orders = useStore((s) => s.orders);
   const products = useStore((s) => s.products);
+  const salesChannels = useStore((s) => s.salesChannels);
 
   const [preset, setPreset] = useState<RangePreset>("30d");
+  const [channelKey, setChannelKey] = useState<string>("all");
+
   const range = useMemo(() => rangeForPreset(preset), [preset]);
 
-  const report = useMemo(
-    () => productSalesReport(orders, products, range),
-    [orders, products, range],
+  // Channel breakdown always uses unfiltered orders — used both for the breakdown card
+  // and for building the channel filter option list.
+  const breakdown = useMemo(
+    () => channelBreakdown(orders, salesChannels, range),
+    [orders, salesChannels, range],
   );
-  const series = useMemo(() => salesByDay(orders, range), [orders, range]);
+
+  // Channel filter options: "ทุกช่องทาง" + one entry per channel that appears in the range.
+  const channelOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [{ value: "all", label: "ทุกช่องทาง" }];
+    for (const row of breakdown) {
+      opts.push({ value: row.key, label: row.label });
+    }
+    return opts;
+  }, [breakdown]);
+
+  // When the selected channel disappears from the range (e.g. preset change), fall back to "all".
+  const effectiveChannelKey = useMemo(() => {
+    if (channelKey === "all") return "all";
+    const exists = breakdown.some((r) => r.key === channelKey);
+    return exists ? channelKey : "all";
+  }, [channelKey, breakdown]);
+
+  const filteredOrders = useMemo(() => {
+    if (effectiveChannelKey === "all") return orders;
+    return orders.filter((o) => orderChannelKey(o) === effectiveChannelKey);
+  }, [orders, effectiveChannelKey]);
+
+  const report = useMemo(
+    () => productSalesReport(filteredOrders, products, range),
+    [filteredOrders, products, range],
+  );
+  const series = useMemo(() => salesByDay(filteredOrders, range), [filteredOrders, range]);
 
   const top10 = useMemo(() => report.slice(0, 10), [report]);
   const worst = useMemo(
@@ -95,14 +177,44 @@ export default function ReportsPage() {
     [top10],
   );
 
+  // Bar data for channel breakdown chart.
+  const channelBarData = useMemo(
+    () => [...breakdown].reverse().map((r) => ({ name: r.label, revenue: r.revenue, color: r.color })),
+    [breakdown],
+  );
+
   const best = report[0];
+
+  const activeChannelLabel =
+    effectiveChannelKey === "all"
+      ? null
+      : channelOptions.find((o) => o.value === effectiveChannelKey)?.label ?? null;
+
+  const pageDescription = activeChannelLabel
+    ? `วิเคราะห์สินค้าขายดีและยอดขาย ${rangeLabel(preset)} · ช่องทาง: ${activeChannelLabel}`
+    : `วิเคราะห์สินค้าขายดีและยอดขาย ${rangeLabel(preset)}`;
 
   return (
     <div>
       <PageHeader
         title="รายงานการขาย"
-        description={`วิเคราะห์สินค้าขายดีและยอดขาย ${rangeLabel(preset)}`}
-        actions={<RangeTabs value={preset} onChange={setPreset} />}
+        description={pageDescription}
+        actions={
+          <div className="flex items-center gap-2">
+            <Select
+              value={effectiveChannelKey}
+              onChange={(e) => setChannelKey(e.target.value)}
+              className="h-9 w-44 text-sm"
+            >
+              {channelOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </Select>
+            <RangeTabs value={preset} onChange={setPreset} />
+          </div>
+        }
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -133,10 +245,104 @@ export default function ReportsPage() {
         />
       </div>
 
+      {/* Channel breakdown card — always shows all channels, unaffected by the filter */}
+      <div className="mt-4">
+        <ChartCard
+          title="ยอดขายตามช่องทาง"
+          description={`เปรียบเทียบทุกช่องทาง · ${rangeLabel(preset)}`}
+        >
+          {breakdown.length === 0 ? (
+            <EmptyState
+              icon={Layers}
+              title="ยังไม่มียอดขาย"
+              description={`ไม่มีข้อมูลการขายใน ${rangeLabel(preset)}`}
+            />
+          ) : (
+            <div className="grid gap-6 xl:grid-cols-2">
+              {/* Horizontal bar chart */}
+              <div style={{ height: Math.max(160, channelBarData.length * 48) }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={channelBarData}
+                    layout="vertical"
+                    margin={{ top: 4, right: 16, left: 8, bottom: 4 }}
+                  >
+                    <CartesianGrid
+                      horizontal={false}
+                      strokeDasharray="3 3"
+                      stroke="#94a3b8"
+                      strokeOpacity={0.18}
+                    />
+                    <XAxis
+                      type="number"
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={compactNumber}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={110}
+                      tick={{ fontSize: 11, fill: "#94a3b8" }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "#94a3b8", fillOpacity: 0.08 }}
+                      content={<CurrencyTooltip currencyKeys={["revenue"]} />}
+                    />
+                    <Bar dataKey="revenue" name="รายได้" radius={[0, 6, 6, 0]}>
+                      {channelBarData.map((entry) => (
+                        <Cell key={entry.name} fill={tokenToHex(entry.color)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Summary table */}
+              <div className="overflow-x-auto">
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>ช่องทาง</TH>
+                      <TH className="text-right">บิล</TH>
+                      <TH className="text-right">ยอดขาย</TH>
+                      <TH className="text-right">ค่าคอม</TH>
+                      <TH className="text-right">สุทธิเข้าร้าน</TH>
+                      <TH className="text-right">กำไร</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {breakdown.map((row) => (
+                      <TR key={row.key}>
+                        <TD>
+                          <Badge tone={tokenToTone(row.color)}>{row.label}</Badge>
+                        </TD>
+                        <TD className="text-right font-mono">{formatNumber(row.orderCount)}</TD>
+                        <TD className="text-right font-mono">{formatTHB(row.revenue)}</TD>
+                        <TD className="text-right font-mono text-rose-500">
+                          {row.commission > 0 ? formatTHB(row.commission) : "-"}
+                        </TD>
+                        <TD className="text-right font-mono">{formatTHB(row.net)}</TD>
+                        <TD className="text-right font-mono text-emerald-500">
+                          {formatTHB(row.profit)}
+                        </TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </ChartCard>
+      </div>
+
       <div className="mt-4 grid gap-4 xl:grid-cols-3">
         <ChartCard
           title="สินค้าขายดี 10 อันดับ"
-          description={`เรียงตามจำนวนที่ขายได้ · ${rangeLabel(preset)}`}
+          description={`เรียงตามจำนวนที่ขายได้ · ${rangeLabel(preset)}${activeChannelLabel ? ` · ${activeChannelLabel}` : ""}`}
           className="xl:col-span-2"
         >
           <div className="h-96 w-full">
@@ -228,7 +434,7 @@ export default function ReportsPage() {
       <div className="mt-4">
         <ChartCard
           title="แนวโน้มรายได้"
-          description={`ยอดขายรายวัน · ${rangeLabel(preset)}`}
+          description={`ยอดขายรายวัน · ${rangeLabel(preset)}${activeChannelLabel ? ` · ${activeChannelLabel}` : ""}`}
         >
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -273,7 +479,10 @@ export default function ReportsPage() {
         <Card strong>
           <CardHeader>
             <CardTitle>ตารางสินค้าขายดี</CardTitle>
-            <CardDescription>เรียงตามจำนวนที่ขายได้ · {rangeLabel(preset)}</CardDescription>
+            <CardDescription>
+              เรียงตามจำนวนที่ขายได้ · {rangeLabel(preset)}
+              {activeChannelLabel ? ` · ${activeChannelLabel}` : ""}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {report.length === 0 ? (

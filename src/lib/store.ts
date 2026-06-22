@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type {
   PricingTier,
+  SalesChannel,
   Category,
   Product,
   Customer,
@@ -18,8 +19,13 @@ import type {
   Ingredient,
   Table,
 } from "./types";
-import { buildSeed } from "./seed";
-import { getPriceForCustomer, bestDiscount } from "./selectors";
+import { buildSeed, SALES_CHANNELS } from "./seed";
+import {
+  getPriceForCustomer,
+  getPriceForChannel,
+  commissionFor,
+  bestDiscount,
+} from "./selectors";
 import { genId } from "./utils";
 
 export interface CartItem {
@@ -28,6 +34,7 @@ export interface CartItem {
 }
 
 export type NewProduct = Omit<Product, "id" | "createdAt">;
+export type NewSalesChannel = Omit<SalesChannel, "id" | "createdAt">;
 export type NewCustomer = Omit<Customer, "id" | "createdAt">;
 export type NewUser = Omit<User, "id" | "createdAt">;
 export type NewExpense = Omit<Expense, "id">;
@@ -50,6 +57,8 @@ export interface CreateOrderItemInput {
 export interface CreateOrderInput {
   customerId: string | null;
   channel: OrderChannel;
+  /** Delivery platform id. When set, lines price by channel and GP is deducted. */
+  salesChannelId?: string;
   items: CreateOrderItemInput[];
   /** Manual discount override. If omitted, the best auto discount applies. */
   discount?: { amount: number; label?: string };
@@ -83,6 +92,7 @@ export interface ReceiveIngredientsInput {
 
 interface StoreState {
   tiers: PricingTier[];
+  salesChannels: SalesChannel[];
   categories: Category[];
   products: Product[];
   customers: Customer[];
@@ -111,7 +121,13 @@ interface StoreState {
   updateProduct: (id: string, patch: Partial<Product>) => void;
   removeProduct: (id: string) => void;
   adjustStock: (id: string, delta: number) => void;
+  setProductChannelPrice: (productId: string, channelId: string, price: number | null) => void;
   addCategory: (name: string) => Category;
+
+  // sales channels (delivery platforms)
+  addSalesChannel: (c: NewSalesChannel) => SalesChannel;
+  updateSalesChannel: (id: string, patch: Partial<SalesChannel>) => void;
+  toggleSalesChannel: (id: string) => void;
 
   // customers
   addCustomer: (c: NewCustomer) => Customer;
@@ -225,11 +241,37 @@ export const useStore = create<StoreState>()(
             p.id === id ? { ...p, stock: Math.max(0, p.stock + delta) } : p,
           ),
         })),
+      setProductChannelPrice: (productId, channelId, price) =>
+        set((s) => ({
+          products: s.products.map((p) => {
+            if (p.id !== productId) return p;
+            const next = { ...(p.channelPrices ?? {}) };
+            if (price == null) delete next[channelId];
+            else next[channelId] = Math.max(0, Math.round(price));
+            return { ...p, channelPrices: Object.keys(next).length ? next : undefined };
+          }),
+        })),
       addCategory: (name) => {
         const cat: Category = { id: genId("cat"), name };
         set((s) => ({ categories: [...s.categories, cat] }));
         return cat;
       },
+
+      addSalesChannel: (c) => {
+        const channel: SalesChannel = { ...c, id: genId("ch"), createdAt: nowISO() };
+        set((s) => ({ salesChannels: [...s.salesChannels, channel] }));
+        return channel;
+      },
+      updateSalesChannel: (id, patch) =>
+        set((s) => ({
+          salesChannels: s.salesChannels.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+        })),
+      toggleSalesChannel: (id) =>
+        set((s) => ({
+          salesChannels: s.salesChannels.map((c) =>
+            c.id === id ? { ...c, active: !c.active } : c,
+          ),
+        })),
 
       addCustomer: (c) => {
         const customer: Customer = {
@@ -354,21 +396,29 @@ export const useStore = create<StoreState>()(
 
       createOrder: (input) => {
         const s = get();
-        const customer = input.customerId
-          ? s.customers.find((c) => c.id === input.customerId) ?? null
+        // Delivery orders price by channel and ignore customer tiers.
+        const salesChannel = input.salesChannelId
+          ? s.salesChannels.find((c) => c.id === input.salesChannelId) ?? null
           : null;
+        const customer =
+          !salesChannel && input.customerId
+            ? s.customers.find((c) => c.id === input.customerId) ?? null
+            : null;
 
         const items: OrderItem[] = input.items
           .map(({ productId, qty, options }) => {
             const p = s.products.find((pr) => pr.id === productId);
             if (!p) return null;
             const optDelta = (options ?? []).reduce((a, o) => a + o.priceDelta, 0);
+            const base = salesChannel
+              ? getPriceForChannel(p, salesChannel.id)
+              : getPriceForCustomer(p, customer, s.tiers);
             const item: OrderItem = {
               productId: p.id,
               name: p.name,
               sku: p.sku,
               qty,
-              unitPrice: getPriceForCustomer(p, customer, s.tiers) + optDelta,
+              unitPrice: base + optDelta,
               cost: p.cost,
             };
             if (options && options.length) item.options = options.map((o) => o.label);
@@ -390,6 +440,7 @@ export const useStore = create<StoreState>()(
         const redeemPoints = customer ? Math.min(wantRedeem, customerPoints) : 0;
         const redeemAmount = Math.min(redeemPoints * redeemValue, subtotal - disc.amount);
         const total = Math.max(0, subtotal - disc.amount - redeemAmount);
+        const commission = commissionFor(total, salesChannel);
 
         const status: OrderStatus =
           input.status ?? (input.channel === "online" ? "pending_payment" : "paid");
@@ -411,8 +462,14 @@ export const useStore = create<StoreState>()(
           id: genId("ord"),
           code,
           customerId: customer ? customer.id : null,
-          customerName: customer ? customer.name : "ลูกค้าหน้าร้าน",
-          channel: input.orderType ?? input.channel,
+          customerName: customer
+            ? customer.name
+            : salesChannel
+              ? "ลูกค้าเดลิเวอรี"
+              : "ลูกค้าหน้าร้าน",
+          channel: salesChannel ? "delivery" : input.orderType ?? input.channel,
+          salesChannelId: salesChannel?.id,
+          commission: commission > 0 ? commission : undefined,
           items,
           subtotal,
           discount: disc.amount,
@@ -551,10 +608,19 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: "pos-demo-store",
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
+      // v1 -> v2: introduce delivery sales channels + per-product channel prices.
+      migrate: (persisted, version) => {
+        const state = (persisted ?? {}) as Partial<StoreState>;
+        if (version < 2 && !state.salesChannels) {
+          state.salesChannels = SALES_CHANNELS;
+        }
+        return state as StoreState;
+      },
       partialize: (s) => ({
         tiers: s.tiers,
+        salesChannels: s.salesChannels,
         categories: s.categories,
         products: s.products,
         customers: s.customers,

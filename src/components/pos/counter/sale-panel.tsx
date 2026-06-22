@@ -11,6 +11,7 @@ import {
   Eraser,
   Minus,
   Plus,
+  Truck,
 } from "lucide-react";
 import {
   Card,
@@ -27,7 +28,7 @@ import { NumpadDialog } from "./numpad-dialog";
 import { bestDiscount } from "@/lib/selectors";
 import { formatTHB, formatNumber } from "@/lib/utils";
 import type { CounterSaleLine } from "./types";
-import type { Customer, PricingTier, Discount, Settings } from "@/lib/types";
+import type { Customer, PricingTier, Discount, Settings, SalesChannel } from "@/lib/types";
 
 /**
  * RIGHT pane of the counter POS. Pure presentation + local numpad dialogs; the
@@ -50,6 +51,9 @@ export function SalePanel({
   redeemPoints,
   onRedeemChange,
   onCheckout,
+  salesChannel,
+  deliveryCommission,
+  deliveryNet,
 }: {
   lines: CounterSaleLine[];
   customers: Customer[];
@@ -68,27 +72,40 @@ export function SalePanel({
   redeemPoints: number;
   onRedeemChange: (v: number) => void;
   onCheckout: () => void;
+  /** Active delivery platform. When set, member/discount/redeem controls are hidden. */
+  salesChannel?: SalesChannel | null;
+  /** Platform GP commission in baht (only relevant in delivery mode). */
+  deliveryCommission?: number;
+  /** Net-to-shop after commission (only relevant in delivery mode). */
+  deliveryNet?: number;
 }) {
+  const isDelivery = !!salesChannel;
   const customer = useMemo(
-    () => customers.find((c) => c.id === selectedCustomerId) ?? null,
-    [customers, selectedCustomerId],
+    () =>
+      isDelivery ? null : (customers.find((c) => c.id === selectedCustomerId) ?? null),
+    [customers, selectedCustomerId, isDelivery],
   );
 
   const subtotal = lines.reduce((a, l) => a + l.unitPrice * l.qty, 0);
-  const auto = bestDiscount(subtotal, customer, discounts);
-  const hasManual = discountValue > 0;
-  const appliedDiscount = hasManual ? Math.min(discountValue, subtotal) : auto.amount;
+  const auto = isDelivery ? { amount: 0 } : bestDiscount(subtotal, customer, discounts);
+  const hasManual = !isDelivery && discountValue > 0;
+  const appliedDiscount = isDelivery
+    ? 0
+    : hasManual
+      ? Math.min(discountValue, subtotal)
+      : auto.amount;
 
   const redeemValue = settings.redeemValue ?? 1;
   const memberPoints = customer?.points ?? 0;
-  const wantRedeem = customer ? Math.min(Math.max(0, redeemPoints), memberPoints) : 0;
+  const wantRedeem =
+    !isDelivery && customer ? Math.min(Math.max(0, redeemPoints), memberPoints) : 0;
   const redeemAmount = Math.min(wantRedeem * redeemValue, subtotal - appliedDiscount);
 
   const total = Math.max(0, subtotal - appliedDiscount - redeemAmount);
   const empty = lines.length === 0;
 
   const earnRate = settings.earnRate ?? 20;
-  const willEarn = customer && earnRate > 0 ? Math.floor(total / earnRate) : 0;
+  const willEarn = !isDelivery && customer && earnRate > 0 ? Math.floor(total / earnRate) : 0;
 
   // Numpad dialog state: which line's qty is being edited, and the discount/redeem modals.
   const [qtyEdit, setQtyEdit] = useState<CounterSaleLine | null>(null);
@@ -117,39 +134,49 @@ export function SalePanel({
       </CardHeader>
 
       <CardContent className="flex flex-1 flex-col gap-4 overflow-hidden pt-5">
-        <div>
-          <Label htmlFor="counter-customer">ลูกค้า</Label>
-          <Select
-            id="counter-customer"
-            value={selectedCustomerId ?? ""}
-            onChange={(e) => onSelectCustomer(e.target.value === "" ? null : e.target.value)}
-          >
-            <option value="">ลูกค้าทั่วไป (walk-in)</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {typeof c.points === "number" ? ` - ${c.points} แต้ม` : ""}
-              </option>
-            ))}
-          </Select>
-          {customer && (
-            <div className="mt-2 flex items-center gap-2">
-              <Badge tone="primary">
-                <Sparkles className="mr-1 h-3 w-3" />
-                {formatNumber(memberPoints)} คะแนน
-              </Badge>
-              {memberPoints > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setRedeemOpen(true)}
-                  className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                >
-                  {wantRedeem > 0 ? `ใช้ ${wantRedeem} แต้ม` : "ใช้คะแนน"}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+        {isDelivery ? (
+          <div className="flex items-center gap-2 rounded-xl bg-slate-500/5 px-3 py-2.5">
+            <Truck className="h-4 w-4 shrink-0 text-slate-400" />
+            <span className="text-sm text-slate-600 dark:text-slate-300">
+              {salesChannel!.name}
+              <span className="ml-1.5 text-xs text-slate-400">— ไม่มีข้อมูลสมาชิก</span>
+            </span>
+          </div>
+        ) : (
+          <div>
+            <Label htmlFor="counter-customer">ลูกค้า</Label>
+            <Select
+              id="counter-customer"
+              value={selectedCustomerId ?? ""}
+              onChange={(e) => onSelectCustomer(e.target.value === "" ? null : e.target.value)}
+            >
+              <option value="">ลูกค้าทั่วไป (walk-in)</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                  {typeof c.points === "number" ? ` - ${c.points} แต้ม` : ""}
+                </option>
+              ))}
+            </Select>
+            {customer && (
+              <div className="mt-2 flex items-center gap-2">
+                <Badge tone="primary">
+                  <Sparkles className="mr-1 h-3 w-3" />
+                  {formatNumber(memberPoints)} คะแนน
+                </Badge>
+                {memberPoints > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setRedeemOpen(true)}
+                    className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                  >
+                    {wantRedeem > 0 ? `ใช้ ${wantRedeem} แต้ม` : "ใช้คะแนน"}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {empty ? (
           <div className="flex flex-1 items-center justify-center">
@@ -234,7 +261,7 @@ export function SalePanel({
             </span>
           </div>
 
-          {!hasManual && auto.amount > 0 && (
+          {!isDelivery && !hasManual && auto.amount > 0 && (
             <div className="flex items-center justify-between text-sm">
               <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
                 <Tag className="h-3.5 w-3.5" />
@@ -246,22 +273,24 @@ export function SalePanel({
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => setDiscountOpen(true)}
-            disabled={empty}
-            className="flex w-full items-center justify-between rounded-lg px-1 py-0.5 text-left transition-colors hover:text-primary disabled:opacity-50"
-          >
-            <span className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
-              <Pencil className="h-3.5 w-3.5" />
-              ส่วนลดเอง
-            </span>
-            <span className="font-mono text-sm font-medium text-slate-900 dark:text-slate-50">
-              {hasManual ? `-${formatTHB(Math.min(discountValue, subtotal))}` : "แตะเพื่อใส่"}
-            </span>
-          </button>
+          {!isDelivery && (
+            <button
+              type="button"
+              onClick={() => setDiscountOpen(true)}
+              disabled={empty}
+              className="flex w-full items-center justify-between rounded-lg px-1 py-0.5 text-left transition-colors hover:text-primary disabled:opacity-50"
+            >
+              <span className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+                <Pencil className="h-3.5 w-3.5" />
+                ส่วนลดเอง
+              </span>
+              <span className="font-mono text-sm font-medium text-slate-900 dark:text-slate-50">
+                {hasManual ? `-${formatTHB(Math.min(discountValue, subtotal))}` : "แตะเพื่อใส่"}
+              </span>
+            </button>
+          )}
 
-          {redeemAmount > 0 && (
+          {!isDelivery && redeemAmount > 0 && (
             <div className="flex items-center justify-between text-sm">
               <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
                 <Sparkles className="h-3.5 w-3.5" />
@@ -284,6 +313,27 @@ export function SalePanel({
             </div>
             <span className="font-mono text-3xl font-bold text-primary">{formatTHB(total)}</span>
           </div>
+
+          {isDelivery && (deliveryCommission ?? 0) > 0 && (
+            <div className="space-y-1.5 rounded-xl bg-slate-500/5 px-3 py-2.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500 dark:text-slate-400">
+                  ค่าคอม GP ({salesChannel!.commission}%)
+                </span>
+                <span className="font-mono font-medium text-rose-600 dark:text-rose-400">
+                  -{formatTHB(deliveryCommission ?? 0)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  สุทธิเข้าร้าน
+                </span>
+                <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                  {formatTHB(deliveryNet ?? total)}
+                </span>
+              </div>
+            </div>
+          )}
 
           <Button
             variant="primary"

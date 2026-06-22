@@ -25,12 +25,21 @@ export function PaymentDialog({
   shopName,
   onConfirm,
   onClose,
+  commission,
+  net,
+  platformName,
 }: {
   open: boolean;
   total: number;
   shopName: string;
   onConfirm: (payload: { method: PaymentMethod; cashReceived: number | null }) => void;
   onClose: () => void;
+  /** Platform GP commission (delivery mode only). */
+  commission?: number;
+  /** Net-to-shop after commission (delivery mode only). */
+  net?: number;
+  /** Delivery platform name shown in the header (delivery mode only). */
+  platformName?: string;
 }) {
   const [mode, setMode] = useState<Mode>("choose");
   const [cash, setCash] = useState("");
@@ -48,6 +57,8 @@ export function PaymentDialog({
   const change = Math.max(0, validCash - total);
   const enoughCash = validCash >= total;
 
+  const isDelivery = commission != null && net != null;
+
   const title =
     mode === "cash"
       ? "รับเงินสด"
@@ -55,7 +66,9 @@ export function PaymentDialog({
         ? "รับชำระผ่าน QR / สลิป"
         : mode === "counter"
           ? "ลงบิล (จ่ายที่เคาน์เตอร์)"
-          : "เลือกวิธีชำระเงิน";
+          : isDelivery
+            ? `เก็บเงิน — ${platformName ?? "เดลิเวอรี"}`
+            : "เลือกวิธีชำระเงิน";
 
   return (
     <Dialog
@@ -65,6 +78,29 @@ export function PaymentDialog({
       description={`ยอดที่ต้องชำระ ${formatTHB(total)}`}
       className="max-w-md"
     >
+      {mode === "choose" && isDelivery && (
+        <div className="mb-3 space-y-1.5 rounded-xl bg-slate-500/5 px-4 py-3 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 dark:text-slate-400">ยอดรวม ({platformName})</span>
+            <span className="font-mono font-semibold text-slate-900 dark:text-slate-50">
+              {formatTHB(total)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 dark:text-slate-400">ค่าคอม GP</span>
+            <span className="font-mono font-medium text-rose-600 dark:text-rose-400">
+              -{formatTHB(commission!)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between border-t border-slate-200/60 pt-1.5 dark:border-white/10">
+            <span className="font-medium text-slate-700 dark:text-slate-200">สุทธิเข้าร้าน</span>
+            <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+              {formatTHB(net!)}
+            </span>
+          </div>
+        </div>
+      )}
+
       {mode === "choose" && (
         <div className="grid gap-3">
           <MethodButton

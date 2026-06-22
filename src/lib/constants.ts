@@ -36,6 +36,7 @@ export const CHANNEL_LABELS = {
   online: "ออนไลน์",
   pos: "เคาน์เตอร์",
   qr: "QR โต๊ะ",
+  delivery: "เดลิเวอรี",
 } as const;
 
 export const PAYMENT_LABELS = {

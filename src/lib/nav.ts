@@ -16,6 +16,7 @@ import {
   ShoppingBag,
   ClipboardList,
   PackageCheck,
+  Store,
   type LucideIcon,
 } from "lucide-react";
 
@@ -34,6 +35,7 @@ const ALL: Role[] = ["customer", "staff", "manager", "owner"];
 export const ADMIN_NAV: NavItem[] = [
   { href: "/admin", label: "ภาพรวม", icon: LayoutDashboard, roles: MANAGER_UP },
   { href: "/admin/products", label: "เมนู", icon: Coffee, roles: MANAGER_UP },
+  { href: "/admin/channels", label: "ช่องทาง & ราคา", icon: Store, roles: MANAGER_UP },
   { href: "/admin/stock", label: "วัตถุดิบ", icon: Boxes, roles: MANAGER_UP },
   { href: "/admin/purchases", label: "รับวัตถุดิบเข้า", icon: Truck, roles: MANAGER_UP },
   { href: "/admin/tables", label: "โต๊ะ & QR", icon: QrCode, roles: MANAGER_UP },

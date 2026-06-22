@@ -4,6 +4,7 @@ import { CheckCircle2, Plus, Sparkles } from "lucide-react";
 import { Dialog, Button, Badge } from "@/components/ui";
 import { CHANNEL_LABELS, PAYMENT_LABELS } from "@/lib/constants";
 import { formatTHB, formatNumber, formatDateTime } from "@/lib/utils";
+import { useStore } from "@/lib/store";
 import type { Order } from "@/lib/types";
 
 /**
@@ -21,8 +22,21 @@ export function CounterReceiptDialog({
   cashReceived: number | null;
   onNewBill: () => void;
 }) {
+  const salesChannels = useStore((s) => s.salesChannels);
+
   const change =
     order && cashReceived != null ? Math.max(0, cashReceived - order.total) : null;
+
+  // Resolve delivery platform name from store (falls back to constant label).
+  const platformName =
+    order?.channel === "delivery" && order.salesChannelId
+      ? (salesChannels.find((c) => c.id === order.salesChannelId)?.name ??
+        CHANNEL_LABELS.delivery)
+      : null;
+
+  const isDelivery = !!platformName;
+  const commission = order?.commission ?? 0;
+  const netToShop = order ? order.total - commission : 0;
 
   return (
     <Dialog
@@ -48,7 +62,9 @@ export function CounterReceiptDialog({
               <span className="font-mono text-sm text-slate-500 dark:text-slate-400">
                 {order.code}
               </span>
-              <Badge tone="info">{CHANNEL_LABELS[order.channel]}</Badge>
+              <Badge tone="info">
+                {isDelivery ? platformName : CHANNEL_LABELS[order.channel]}
+              </Badge>
               {order.paymentMethod && (
                 <Badge tone="neutral">{PAYMENT_LABELS[order.paymentMethod]}</Badge>
               )}
@@ -104,6 +120,24 @@ export function CounterReceiptDialog({
               </span>
             </div>
 
+            {isDelivery && commission > 0 && (
+              <div className="space-y-1.5 rounded-xl bg-slate-500/5 px-3 py-2.5">
+                <Row
+                  label={`ค่าคอม GP (${platformName})`}
+                  value={`-${formatTHB(commission)}`}
+                  tone="commission"
+                />
+                <div className="flex items-center justify-between border-t border-slate-200/60 pt-1.5 text-sm dark:border-white/10">
+                  <span className="font-medium text-slate-700 dark:text-slate-200">
+                    สุทธิเข้าร้าน
+                  </span>
+                  <span className="font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                    {formatTHB(netToShop)}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {cashReceived != null && (
               <>
                 <Row label="รับเงินสด" value={formatTHB(cashReceived)} />
@@ -140,30 +174,26 @@ function Row({
 }: {
   label: string;
   value: string;
-  tone?: "discount";
+  tone?: "discount" | "commission";
 }) {
+  const labelClass =
+    tone === "discount"
+      ? "text-emerald-600 dark:text-emerald-400"
+      : tone === "commission"
+        ? "text-rose-600 dark:text-rose-400"
+        : "text-slate-500 dark:text-slate-400";
+
+  const valueClass =
+    tone === "discount"
+      ? "font-mono font-medium text-emerald-600 dark:text-emerald-400"
+      : tone === "commission"
+        ? "font-mono font-medium text-rose-600 dark:text-rose-400"
+        : "font-mono font-medium text-slate-900 dark:text-slate-50";
+
   return (
     <div className="flex items-center justify-between text-sm">
-      <span
-        className={
-          tone === "discount"
-            ? "text-emerald-600 dark:text-emerald-400"
-            : "text-slate-500 dark:text-slate-400"
-        }
-      >
-        {label}
-      </span>
-      {value && (
-        <span
-          className={
-            tone === "discount"
-              ? "font-mono font-medium text-emerald-600 dark:text-emerald-400"
-              : "font-mono font-medium text-slate-900 dark:text-slate-50"
-          }
-        >
-          {value}
-        </span>
-      )}
+      <span className={labelClass}>{label}</span>
+      {value && <span className={valueClass}>{value}</span>}
     </div>
   );
 }

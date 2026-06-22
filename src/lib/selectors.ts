@@ -2,12 +2,14 @@
 // Builder agents import these for pricing, discounts, finance, and reports.
 
 import { formatDate } from "./utils";
+import { CHANNEL_LABELS } from "./constants";
 import type {
   Order,
   OrderStatus,
   Customer,
   Product,
   PricingTier,
+  SalesChannel,
   Discount,
   Expense,
   Purchase,
@@ -81,6 +83,87 @@ export function getPriceForCustomer(
   return Math.round(product.basePrice * mult);
 }
 
+/**
+ * Resolve the price charged on a given sales channel (delivery platform):
+ * the product's absolute per-channel override, falling back to basePrice.
+ * Channel pricing is order-source based and does NOT apply customer tiers.
+ */
+export function getPriceForChannel(product: Product, channelId: string): number {
+  const override = product.channelPrices?.[channelId];
+  return Math.round(override != null ? override : product.basePrice);
+}
+
+/** Platform commission in baht for an order amount, e.g. 30% of total. */
+export function commissionFor(amount: number, channel: SalesChannel | undefined | null): number {
+  if (!channel) return 0;
+  return Math.round((amount * channel.commission) / 100);
+}
+
+/**
+ * Stable grouping key for "sales by channel" reports: delivery orders split by
+ * their platform (salesChannelId), everything else by the OrderChannel itself.
+ */
+export function orderChannelKey(order: Order): string {
+  if (order.channel === "delivery" && order.salesChannelId) return order.salesChannelId;
+  return order.channel;
+}
+
+export interface ChannelSalesRow {
+  key: string;
+  label: string;
+  color: string;
+  orderCount: number;
+  qtySold: number;
+  revenue: number;
+  commission: number;
+  /** Revenue minus platform commission = what actually reaches the shop. */
+  net: number;
+  /** Item margin minus discount minus commission. */
+  profit: number;
+}
+
+/** Built-in (non-delivery) channel accent tokens for breakdown badges/bars. */
+const BUILTIN_CHANNEL_COLOR: Record<string, string> = {
+  pos: "amber",
+  qr: "violet",
+  online: "sky",
+  delivery: "emerald",
+};
+
+/** Per-channel sales aggregation for the reports page, sorted by revenue desc. */
+export function channelBreakdown(
+  orders: Order[],
+  channels: SalesChannel[],
+  range: DateRange,
+): ChannelSalesRow[] {
+  const chById = new Map(channels.map((c) => [c.id, c]));
+  const map = new Map<string, ChannelSalesRow>();
+  for (const o of orders) {
+    if (!PAID_STATUSES.includes(o.status)) continue;
+    if (!inRange(o.paidAt ?? o.createdAt, range)) continue;
+    const key = orderChannelKey(o);
+    let row = map.get(key);
+    if (!row) {
+      const ch = chById.get(key);
+      const label = ch
+        ? ch.name
+        : CHANNEL_LABELS[key as keyof typeof CHANNEL_LABELS] ?? key;
+      const color = ch?.color ?? BUILTIN_CHANNEL_COLOR[key] ?? "slate";
+      row = { key, label, color, orderCount: 0, qtySold: 0, revenue: 0, commission: 0, net: 0, profit: 0 };
+      map.set(key, row);
+    }
+    const itemProfit = o.items.reduce((a, i) => a + (i.unitPrice - i.cost) * i.qty, 0);
+    const commission = o.commission ?? 0;
+    row.orderCount += 1;
+    row.qtySold += o.items.reduce((a, i) => a + i.qty, 0);
+    row.revenue += o.total;
+    row.commission += commission;
+    row.net += o.total - commission;
+    row.profit += itemProfit - o.discount - commission;
+  }
+  return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
+}
+
 /** Pick the best applicable end-of-bill discount for a subtotal + customer. */
 export function bestDiscount(
   subtotal: number,
@@ -114,6 +197,8 @@ export function financeSummary(
   const revenue = sum(paid.map((o) => o.total));
   const cogs = sum(paid.flatMap((o) => o.items.map((i) => i.cost * i.qty)));
   const grossProfit = revenue - cogs;
+  // Delivery-platform GP is a real cost of the sale, deducted from net profit.
+  const commission = sum(paid.map((o) => o.commission ?? 0));
 
   const exp = expenses.filter((e) => inRange(e.date, range));
   const opex = sum(exp.filter((e) => e.type !== "withdrawal").map((e) => e.amount));
@@ -121,15 +206,16 @@ export function financeSummary(
   const inventoryIn = sum(
     purchases.filter((p) => inRange(p.createdAt, range)).map((p) => p.total),
   );
-  const netProfit = grossProfit - opex;
+  const netProfit = grossProfit - opex - commission;
 
   // Cash balance is a point-in-time figure: always all-time, ignoring the range.
   const allPaid = orders.filter((o) => PAID_STATUSES.includes(o.status));
   const cashIn = sum(allPaid.map((o) => o.total));
+  const allCommission = sum(allPaid.map((o) => o.commission ?? 0));
   const allOpex = sum(expenses.filter((e) => e.type !== "withdrawal").map((e) => e.amount));
   const allWd = sum(expenses.filter((e) => e.type === "withdrawal").map((e) => e.amount));
   const allInv = sum(purchases.map((p) => p.total));
-  const cashBalance = settings.startingCash + cashIn - allOpex - allWd - allInv;
+  const cashBalance = settings.startingCash + cashIn - allCommission - allOpex - allWd - allInv;
 
   const orderCount = paid.length;
   const avgOrder = orderCount ? Math.round(revenue / orderCount) : 0;
@@ -138,6 +224,7 @@ export function financeSummary(
     revenue,
     cogs,
     grossProfit,
+    commission,
     opex,
     netProfit,
     withdrawals,
@@ -168,7 +255,9 @@ export function salesByDay(
     const b = buckets.get(key);
     if (!b) continue;
     const profit =
-      o.items.reduce((a, i) => a + (i.unitPrice - i.cost) * i.qty, 0) - o.discount;
+      o.items.reduce((a, i) => a + (i.unitPrice - i.cost) * i.qty, 0) -
+      o.discount -
+      (o.commission ?? 0);
     b.revenue += o.total;
     b.profit += profit;
   }

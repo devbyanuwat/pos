@@ -36,6 +36,23 @@ export interface PricingTier {
   color: string;
 }
 
+/**
+ * An external delivery / online marketplace the shop sells through, e.g. GrabFood
+ * or LineMan. Each carries a GP (commission) the platform deducts, and products
+ * may set an absolute per-channel price (see Product.channelPrices). Distinct from
+ * PricingTier, which is customer-based; sales channels are order-source based.
+ */
+export interface SalesChannel {
+  id: string;
+  name: string;
+  /** GP / commission percent the platform deducts from each order, e.g. 30. */
+  commission: number;
+  /** Tailwind-ish accent token name for badges, e.g. "emerald". */
+  color: string;
+  active: boolean;
+  createdAt: string;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -95,6 +112,8 @@ export interface Product {
   options?: MenuOption[];
   /** Ingredients consumed to make one unit. Coffee pivot. */
   recipe?: RecipeLine[];
+  /** Absolute per-sales-channel price override. channelId -> price. Unset = basePrice. */
+  channelPrices?: Record<string, number>;
   createdAt: string;
 }
 
@@ -128,7 +147,7 @@ export type OrderStatus =
   | "completed"
   | "cancelled";
 
-export type OrderChannel = "online" | "pos" | "qr";
+export type OrderChannel = "online" | "pos" | "qr" | "delivery";
 
 export interface OrderItem {
   productId: string;
@@ -150,6 +169,10 @@ export interface Order {
   customerId: string | null;
   customerName: string;
   channel: OrderChannel;
+  /** Delivery platform this order came through (when channel === "delivery"). */
+  salesChannelId?: string;
+  /** Platform commission deducted from this order, in baht. Snapshot at sale time. */
+  commission?: number;
   items: OrderItem[];
   subtotal: number;
   /** Discount amount in baht (already resolved from percent/fixed). */
@@ -244,6 +267,8 @@ export interface FinanceSummary {
   revenue: number;
   cogs: number;
   grossProfit: number;
+  /** Delivery-platform commission deducted in the range, in baht. */
+  commission: number;
   opex: number;
   netProfit: number;
   withdrawals: number;
