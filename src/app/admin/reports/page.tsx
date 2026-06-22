@@ -480,7 +480,7 @@ export default function ReportsPage() {
           <CardHeader>
             <CardTitle>ตารางสินค้าขายดี</CardTitle>
             <CardDescription>
-              เรียงตามจำนวนที่ขายได้ · {rangeLabel(preset)}
+              เรียงตามจำนวนที่ขายได้ · กำไรหักค่าคอม GP แล้ว · {rangeLabel(preset)}
               {activeChannelLabel ? ` · ${activeChannelLabel}` : ""}
             </CardDescription>
           </CardHeader>
@@ -499,6 +499,7 @@ export default function ReportsPage() {
                     <TH>สินค้า</TH>
                     <TH className="text-right">ขายได้</TH>
                     <TH className="text-right">รายได้</TH>
+                    <TH className="text-right">GP</TH>
                     <TH className="text-right">กำไร</TH>
                   </TR>
                 </THead>
@@ -521,6 +522,9 @@ export default function ReportsPage() {
                         {formatNumber(r.qtySold)}
                       </TD>
                       <TD className="text-right font-mono">{formatTHB(r.revenue)}</TD>
+                      <TD className="text-right font-mono text-rose-500">
+                        {r.commission > 0 ? `-${formatTHB(r.commission)}` : "-"}
+                      </TD>
                       <TD className="text-right font-mono text-emerald-500">
                         {formatTHB(r.profit)}
                       </TD>

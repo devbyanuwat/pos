@@ -279,6 +279,10 @@ export function productSalesReport(
   for (const o of orders) {
     if (!PAID_STATUSES.includes(o.status)) continue;
     if (!inRange(o.paidAt ?? o.createdAt, range)) continue;
+    // Split the order's GP across its lines pro-rata by line revenue, so each
+    // product carries its real share of the platform commission.
+    const orderRevenue = o.items.reduce((a, i) => a + i.unitPrice * i.qty, 0);
+    const orderCommission = o.commission ?? 0;
     for (const it of o.items) {
       let row = map.get(it.productId);
       if (!row) {
@@ -290,16 +294,25 @@ export function productSalesReport(
           image: p?.image ?? "",
           qtySold: 0,
           revenue: 0,
+          commission: 0,
           profit: 0,
         };
         map.set(it.productId, row);
       }
+      const lineRevenue = it.unitPrice * it.qty;
+      const lineCommission =
+        orderCommission > 0 && orderRevenue > 0
+          ? (orderCommission * lineRevenue) / orderRevenue
+          : 0;
       row.qtySold += it.qty;
-      row.revenue += it.unitPrice * it.qty;
-      row.profit += (it.unitPrice - it.cost) * it.qty;
+      row.revenue += lineRevenue;
+      row.commission += lineCommission;
+      row.profit += (it.unitPrice - it.cost) * it.qty - lineCommission;
     }
   }
-  return Array.from(map.values()).sort((a, b) => b.qtySold - a.qtySold);
+  return Array.from(map.values())
+    .map((r) => ({ ...r, commission: Math.round(r.commission), profit: Math.round(r.profit) }))
+    .sort((a, b) => b.qtySold - a.qtySold);
 }
 
 export function expenseBreakdown(

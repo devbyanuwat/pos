@@ -286,5 +286,8 @@ export interface ProductSalesRow {
   image: string;
   qtySold: number;
   revenue: number;
+  /** Delivery GP attributed to this product (order commission split pro-rata by line). */
+  commission: number;
+  /** Margin after cost AND attributed GP, i.e. the real take-home profit. */
   profit: number;
 }
