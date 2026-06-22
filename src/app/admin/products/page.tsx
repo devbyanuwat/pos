@@ -48,6 +48,7 @@ export default function MenuPage() {
   const products = useStore((s) => s.products);
   const categories = useStore((s) => s.categories);
   const ingredients = useStore((s) => s.ingredients);
+  const salesChannels = useStore((s) => s.salesChannels);
   const addProduct = useStore((s) => s.addProduct);
   const updateProduct = useStore((s) => s.updateProduct);
   const removeProduct = useStore((s) => s.removeProduct);
@@ -295,6 +296,7 @@ export default function MenuPage() {
         product={editing}
         categories={categories}
         ingredients={ingredients}
+        salesChannels={salesChannels}
       />
 
       <Dialog

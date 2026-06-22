@@ -7,6 +7,8 @@ import {
   Info,
   SlidersHorizontal,
   FlaskConical,
+  Store,
+  Plus,
   X,
 } from "lucide-react";
 import {
@@ -20,8 +22,9 @@ import {
   Badge,
   Tabs,
 } from "@/components/ui";
-import type { Category, Ingredient, MenuOption, Product } from "@/lib/types";
+import type { Category, Ingredient, MenuOption, Product, SalesChannel } from "@/lib/types";
 import type { NewProduct } from "@/lib/store";
+import { commissionFor } from "@/lib/selectors";
 import { cn, formatTHB } from "@/lib/utils";
 import { OptionsEditor, type DraftOption } from "./options-editor";
 import {
@@ -43,6 +46,8 @@ interface FormState {
   description: string;
   image: string;
   active: boolean;
+  /** Per-channel price overrides as raw input strings. channelId -> price. */
+  channelPrices: Record<string, string>;
 }
 
 const emptyForm = (categoryId: string): FormState => ({
@@ -56,7 +61,13 @@ const emptyForm = (categoryId: string): FormState => ({
   description: "",
   image: "",
   active: true,
+  channelPrices: {},
 });
+
+function channelPricesToForm(prices?: Record<string, number>): Record<string, string> {
+  if (!prices) return {};
+  return Object.fromEntries(Object.entries(prices).map(([id, v]) => [id, String(v)]));
+}
 
 function toForm(p: Product): FormState {
   return {
@@ -70,7 +81,20 @@ function toForm(p: Product): FormState {
     description: p.description ?? "",
     image: p.image ?? "",
     active: p.active,
+    channelPrices: channelPricesToForm(p.channelPrices),
   };
+}
+
+/** Convert raw channel-price inputs into the persisted Record (drops blanks / <= 0). */
+function draftToChannelPrices(
+  draft: Record<string, string>,
+): Record<string, number> | undefined {
+  const out: Record<string, number> = {};
+  for (const [id, raw] of Object.entries(draft)) {
+    const n = Math.round(Number(raw));
+    if (raw.trim() !== "" && Number.isFinite(n) && n > 0) out[id] = n;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 function optionsToDraft(options?: MenuOption[]): DraftOption[] {
@@ -134,6 +158,7 @@ export function MenuFormDialog({
   product,
   categories,
   ingredients,
+  salesChannels,
 }: {
   open: boolean;
   onClose: () => void;
@@ -142,6 +167,7 @@ export function MenuFormDialog({
   product?: Product | null;
   categories: Category[];
   ingredients: Ingredient[];
+  salesChannels: SalesChannel[];
 }) {
   const isEdit = !!product;
   const [tab, setTab] = useState("info");
@@ -175,6 +201,10 @@ export function MenuFormDialog({
   const recipeCount = useMemo(
     () => recipe.filter((l) => l.ingredientId && (Number(l.qty) || 0) > 0).length,
     [recipe],
+  );
+  const channelPriceCount = useMemo(
+    () => Object.values(form.channelPrices).filter((v) => v.trim() !== "").length,
+    [form.channelPrices],
   );
 
   function handleFile(file: File | null) {
@@ -215,6 +245,7 @@ export function MenuFormDialog({
       active: form.active,
       options: draftToOptions(options),
       recipe: draftToRecipe(recipe),
+      channelPrices: draftToChannelPrices(form.channelPrices),
     });
   }
 
@@ -242,6 +273,7 @@ export function MenuFormDialog({
             { value: "info", label: tabLabel(Info, "ข้อมูลเมนู") },
             { value: "options", label: tabLabel(SlidersHorizontal, `ตัวเลือก${optionCount ? ` (${optionCount})` : ""}`) },
             { value: "recipe", label: tabLabel(FlaskConical, `สูตร${recipeCount ? ` (${recipeCount})` : ""}`) },
+            { value: "channels", label: tabLabel(Store, `ราคาช่องทาง${channelPriceCount ? ` (${channelPriceCount})` : ""}`) },
           ]}
           value={tab}
           onChange={setTab}
@@ -435,6 +467,20 @@ export function MenuFormDialog({
           </div>
         )}
 
+        {tab === "channels" && (
+          <div className="grid gap-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              เพิ่มช่องทางที่ขายเมนูนี้ แล้วตั้งราคาขายของช่องทางนั้น ถ้าไม่ตั้งจะใช้ราคาขายหน้าร้าน
+            </p>
+            <ChannelPriceEditor
+              channels={salesChannels}
+              value={form.channelPrices}
+              basePrice={basePrice}
+              onChange={(next) => set("channelPrices", next)}
+            />
+          </div>
+        )}
+
         {error && (
           <p className="rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-500">{error}</p>
         )}
@@ -449,5 +495,107 @@ function tabLabel(Icon: typeof Info, text: string) {
       <Icon className="h-4 w-4" />
       {text}
     </span>
+  );
+}
+
+/** Add per-channel selling prices for one product: pick a platform, set its price. */
+function ChannelPriceEditor({
+  channels,
+  value,
+  basePrice,
+  onChange,
+}: {
+  channels: SalesChannel[];
+  value: Record<string, string>;
+  basePrice: number;
+  onChange: (next: Record<string, string>) => void;
+}) {
+  const rows = Object.keys(value);
+  const available = channels.filter((c) => c.active && !(c.id in value));
+
+  const addChannel = (id: string) => {
+    if (!id || id in value) return;
+    onChange({ ...value, [id]: basePrice > 0 ? String(basePrice) : "" });
+  };
+  const setPrice = (id: string, price: string) => onChange({ ...value, [id]: price });
+  const removeChannel = (id: string) => {
+    const next = { ...value };
+    delete next[id];
+    onChange(next);
+  };
+
+  if (channels.length === 0) {
+    return (
+      <div className="rounded-xl bg-slate-500/5 px-3.5 py-3 text-sm text-slate-500 dark:text-slate-400">
+        ยังไม่มีแพลตฟอร์มเดลิเวอรี เพิ่มได้ที่หน้า ช่องทาง &amp; ราคา
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-2.5">
+      {rows.length === 0 && (
+        <p className="rounded-xl bg-slate-500/5 px-3.5 py-3 text-sm text-slate-400">
+          ยังไม่ได้ตั้งราคาช่องทางใด — ทุกช่องทางจะใช้ราคาขายหน้าร้าน
+        </p>
+      )}
+
+      {rows.map((id) => {
+        const ch = channels.find((c) => c.id === id);
+        const price = Number(value[id]) || 0;
+        const net = ch ? price - commissionFor(price, ch) : price;
+        return (
+          <div
+            key={id}
+            className="flex items-center gap-3 rounded-xl border border-slate-200/60 px-3 py-2.5 dark:border-white/10"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <Badge tone="neutral">{ch?.name ?? id}</Badge>
+                {ch && <span className="text-xs text-slate-400">GP {ch.commission}%</span>}
+              </div>
+              {price > 0 && ch && (
+                <p className="mt-1 text-xs text-slate-400">สุทธิเข้าร้าน {formatTHB(net)}</p>
+              )}
+            </div>
+            <Input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={value[id]}
+              onChange={(e) => setPrice(id, e.target.value)}
+              placeholder={String(basePrice || 0)}
+              className="w-28 text-right font-mono"
+            />
+            <button
+              type="button"
+              onClick={() => removeChannel(id)}
+              aria-label={`ลบ ${ch?.name ?? id}`}
+              className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-500"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        );
+      })}
+
+      {available.length > 0 ? (
+        <div className="flex items-center gap-2">
+          <Plus className="h-4 w-4 shrink-0 text-slate-400" />
+          <Select value="" onChange={(e) => addChannel(e.target.value)} className="flex-1">
+            <option value="">เพิ่มช่องทางการขาย...</option>
+            {available.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} (GP {c.commission}%)
+              </option>
+            ))}
+          </Select>
+        </div>
+      ) : (
+        rows.length > 0 && (
+          <p className="text-xs text-slate-400">เพิ่มครบทุกช่องทางที่เปิดใช้แล้ว</p>
+        )
+      )}
+    </div>
   );
 }
